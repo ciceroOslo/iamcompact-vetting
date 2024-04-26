@@ -22,7 +22,29 @@ class IamDataFrameVetter(
     `IamDataFrame` as input, and returns a subclass of `VettingResultsBase`. The
     class should also declare the `result_type` attribute, which should be the
     subclass of `VettingResults` that is returned by `.check`.
+
+    Properties
+    ----------
+
     """
+
+    def __init__(self, data: IamDataFrame):
+        """
+        Parameters
+        ----------
+        data : IamDataFrame
+            The `IamDataFrame` to be checked.
+        """
+        self._data: IamDataFrame = data
+    ###END def IamDataFrameVetter.__init__
+
+    @property
+    def data(self) -> IamDataFrame:
+        """The `IamDataFrame` to be checked. Note that the data object itself
+        is returned, not a copy, so it should not be changed unintentionally.
+        """
+        return self._data
+    ###END property def IamDataFrameVetter.data
 
     @abc.abstractmethod
     def check(self, data: IamDataFrame) -> ResultsType:
@@ -39,4 +61,9 @@ class IamDataFrameVetter(
             The results of the vetting check.
         """
         raise NotImplementedError
+    ###END abstractmethod def IamDataFrameVetter.check
+
 ###END class IamDataFrameVetter
+
+
+
