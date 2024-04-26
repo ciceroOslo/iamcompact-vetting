@@ -20,6 +20,7 @@ VettingResultsBase
 import typing as tp
 import enum
 import abc
+from collections.abc import Callable
 
 
 StatusType = tp.TypeVar('StatusType', bound=enum.Enum)
@@ -48,10 +49,10 @@ class VettingResultsBase(tp.Generic[StatusType], abc.ABC):
         The status of the check.
     """
     status: StatusType
-    status_type: tp.Type[StatusType]
 
     def __init__(self, status: StatusType):
         self.status = status
+    ###END def VettingResultsBase.__init__
 
     @abc.abstractmethod
     def __str__(self) -> str:
@@ -107,13 +108,69 @@ class Vetter(tp.Generic[CheckingDataType, ResultsType], abc.ABC):
 
 
 QuantityType = tp.TypeVar('QuantityType')
+"""TypeVar for the type of the quantity to be checked."""
+TargetType = tp.TypeVar('TargetType')
+"""TypeVar for the type of the target value or range."""
+MeasureType = tp.TypeVar('MeasureType')
+"""TypeVar for the type of the object that measures how close the quantity is to
+the target value or range."""
+
+class TargetCheckResultsBase(
+        VettingResultsBase[StatusType],
+        tp.Generic[QuantityType, TargetType, MeasureType, StatusType],
+        abc.ABC
+):
+    """Base class for checking that a quantity is close to a target value or range.
+
+    This is an abstract base class, and the "quantity" in question can be of any
+    type (referred to by the type varialbe `QuantityType` below), to be
+    specified further by subclasses.
+
+    Attributes
+    ----------
+    value : QuantityType
+        The value of the quantity that was checked.
+    target_value : TargetType
+        The target value of the quantity that was checked.
+    measure : MeasureType
+        The object that measures how close the quantity is to the target value.
+    status : StatusType
+        The status of the check, typically a category based on how close the
+        quantity is to the target value (i.e., a function of `measure`).
+    status_map : Callable[[MeasureType], StatusType]
+        A function that maps the measure to a status.
+    """
+    value : QuantityType
+    target_value : TargetType
+    measure : MeasureType
+    status_map : Callable[[MeasureType], StatusType]
+
+    def __init__(
+            self,
+            value: QuantityType,
+            target_value: TargetType,
+            measure: MeasureType,
+            status_map: Callable[[MeasureType], StatusType]
+    ):
+        self.value = value
+        self.target_value = target_value
+        self.measure = measure
+        self.status_map = status_map
+        super().__init__(status=status_map(self.measure))
+    ###END def TargetCheckResultsBase.__init__
+
+###END class TargetCheckResultsBase
+
+
 
 class RangeCheckResultsBase(
         VettingResultsBase[StatusType],
         tp.Generic[QuantityType, StatusType],
         abc.ABC
 ):
-    """Base class for checking that a quantity is within a specified range.
+    """***NB! THIS CLASS AS WRITTEN IS OBSOLETE. SHOULD BE REPLACED.***
+    
+    Base class for checking that a quantity is within a specified range.
     
     This is an abstract base class, and the "quantity" in question can be of any
     type (referred to by the type varialbe `QuantityType` below), to be

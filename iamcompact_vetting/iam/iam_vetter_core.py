@@ -1,14 +1,24 @@
 """Base classes and core functionality for vettting pyam.IamDataFrame instances."""
 import typing as tp
 import abc
+import enum
 
 from pyam import IamDataFrame
 
-from iamcompact_vetting.vetter_base import Vetter, VettingResultsBase
+from iamcompact_vetting.vetter_base import (
+    Vetter,
+    VettingResultsBase,
+    RangeCheckResultsBase
+)
 
 
 
+# TypeVars
 ResultsType = tp.TypeVar('ResultsType', bound=VettingResultsBase)
+"""TypeVar for the results of a vetting check."""
+
+StatusType = tp.TypeVar('StatusType', bound=enum.Enum)
+"""TypeVar for the status of a vetting check (should be an enum)."""
 
 
 class IamDataFrameVetter(
@@ -66,4 +76,7 @@ class IamDataFrameVetter(
 ###END class IamDataFrameVetter
 
 
-
+class IamDataFrameTimeseriesRangeCheckResult(
+    RangeCheckResultsBase[IamDataFrame, StatusType],
+    tp.Generic[StatusType]
+):
