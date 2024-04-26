@@ -115,7 +115,7 @@ MeasureType = tp.TypeVar('MeasureType')
 """TypeVar for the type of the object that measures how close the quantity is to
 the target value or range."""
 
-class TargetCheckResultsBase(
+class TargetCheckResult(
         VettingResultsBase[StatusType],
         tp.Generic[QuantityType, TargetType, MeasureType, StatusType],
         abc.ABC
@@ -156,6 +156,82 @@ class TargetCheckResultsBase(
     ###END def TargetCheckResultsBase.__init__
 
 ###END class TargetCheckResultsBase
+
+
+class TargetCheckVetter(
+    Vetter[
+        QuantityType,
+        TargetCheckResult[
+            QuantityType,
+            TargetType,
+            MeasureType,
+            StatusType
+        ]
+    ],
+    tp.Generic[QuantityType, TargetType, MeasureType, StatusType],
+):
+    """Base class for performing vetting checks on a quantity with respect to a
+    target value or range.
+
+    Attributes
+    ----------
+    target_value : TargetType
+        The target value of the quantity that was checked.
+    compute_measure : Callable[[QuantityType, TargetType], MeasureType]
+        The function that computes how close the quantity is to the target value.
+    status_mapping: Callable[[MeasureType], StatusType]
+        The function that maps the measure to a status.
+    result_class : Type[TargetCheckResult]
+        The class of the results of the check. Defaults to `TargetCheckResult`,
+        but can be overridden by subclasses. Should be a subclass of
+        `TargetCheckResult`.
+    """
+
+    target_value: TargetType
+    compute_measure: tp.Callable[[QuantityType, TargetType], MeasureType]
+    status_mapping: tp.Callable[[MeasureType], StatusType]
+
+    result_type: tp.Type[
+        TargetCheckResult[
+            QuantityType,
+            TargetType,
+            MeasureType,
+            StatusType
+        ]
+    ] = TargetCheckResult
+
+    def __init__(
+            self,
+            target_value: TargetType,
+            compute_measure: tp.Callable[[QuantityType, TargetType], MeasureType],
+            status_mapping: tp.Callable[[MeasureType], StatusType]
+    ):
+        """
+        Parameters
+        ----------
+        target_value : TargetType
+            The target value of the quantity that will be checked.
+        compute_measure : Callable[[QuantityType, TargetType], MeasureType]
+            The function that computes how close the quantity is to the target
+            value, and returns a measure of the given type.
+        status_mapping: Callable[[MeasureType], StatusType]
+            The function that maps the measure to a status.
+        """
+        self.target_value = target_value
+        self.compute_measure = compute_measure
+        self.status_mapping = status_mapping
+    ###END def TargetCheckVetter.__init__
+
+    def check(self, value: QuantityType) -> TargetCheckResult[
+            QuantityType, TargetType, MeasureType, StatusType
+    ]:
+        measure = self.compute_measure(value, self.target_value)
+        status = self.status_mapping(measure)
+        return self.result_type(value, self.target_value, measure, status)
+    ###END def TargetCheckVetter.check
+
+###END class TargetCheckVetter
+    
 
 
 
