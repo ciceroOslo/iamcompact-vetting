@@ -115,10 +115,10 @@ class IamDataFrameVetter(
 ):
     """Base class for performing vetting checks on an `IamDataFrame`.
 
-    Subclasses should implement the `.check` method, which takes an `IamDataFrame`
-    as input, and returns a subclass of `VettingResults`. The class should also
-    declare the `result_type` attribute, which should be the subclass of
-    `VettingResults` that is returned by `.check`.
+    Subclasses should implement the `.check` method, which takes an
+    `IamDataFrame` as input, and returns a subclass of `VettingResultsBase`. The
+    class should also declare the `result_type` attribute, which should be the
+    subclass of `VettingResults` that is returned by `.check`.
     """
 
     @abc.abstractmethod
