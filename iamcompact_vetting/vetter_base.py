@@ -21,8 +21,6 @@ import typing as tp
 import enum
 import abc
 
-from pyam import IamDataFrame
-
 
 StatusType = tp.TypeVar('StatusType', bound=enum.Enum)
 """TypeVar for the status of a vetting check (should be an enum)."""
@@ -106,37 +104,6 @@ class Vetter(tp.Generic[CheckingDataType, ResultsType], abc.ABC):
         raise NotImplementedError
 
 ###END class Vetter
-
-
-class IamDataFrameVetter(
-        Vetter[IamDataFrame, ResultsType],
-        tp.Generic[ResultsType],
-        abc.ABC
-):
-    """Base class for performing vetting checks on an `IamDataFrame`.
-
-    Subclasses should implement the `.check` method, which takes an
-    `IamDataFrame` as input, and returns a subclass of `VettingResultsBase`. The
-    class should also declare the `result_type` attribute, which should be the
-    subclass of `VettingResults` that is returned by `.check`.
-    """
-
-    @abc.abstractmethod
-    def check(self, data: IamDataFrame) -> ResultsType:
-        """Perform a vetting check on the given `IamDataFrame`.
-
-        Parameters
-        ----------
-        data : IamDataFrame
-            The `IamDataFrame` to be checked.
-
-        Returns
-        -------
-        ResultsType
-            The results of the vetting check.
-        """
-        raise NotImplementedError
-###END class IamDataFrameVetter
 
 
 QuantityType = tp.TypeVar('QuantityType')
