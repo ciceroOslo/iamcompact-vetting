@@ -137,26 +137,22 @@ class TargetCheckResultsBase(
     status : StatusType
         The status of the check, typically a category based on how close the
         quantity is to the target value (i.e., a function of `measure`).
-    status_map : Callable[[MeasureType], StatusType]
-        A function that maps the measure to a status.
     """
     value : QuantityType
     target_value : TargetType
     measure : MeasureType
-    status_map : Callable[[MeasureType], StatusType]
 
     def __init__(
             self,
             value: QuantityType,
             target_value: TargetType,
             measure: MeasureType,
-            status_map: Callable[[MeasureType], StatusType]
+            status: StatusType
     ):
         self.value = value
         self.target_value = target_value
         self.measure = measure
-        self.status_map = status_map
-        super().__init__(status=status_map(self.measure))
+        super().__init__(status=status)
     ###END def TargetCheckResultsBase.__init__
 
 ###END class TargetCheckResultsBase
