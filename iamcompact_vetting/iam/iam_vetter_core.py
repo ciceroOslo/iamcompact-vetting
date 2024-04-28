@@ -6,6 +6,7 @@ from collections.abc import Mapping, Callable, Sequence
 import dataclasses
 
 from pyam import IamDataFrame
+import pyam
 
 from iamcompact_vetting.vetter_base import (
     Vetter,
@@ -15,6 +16,9 @@ from iamcompact_vetting.vetter_base import (
 )
 
 
+
+TIMEDIM: str = 'year'
+"""Name of the time dimension used."""
 
 # TypeVars
 ResultsType = tp.TypeVar('ResultsType', bound=VettingResultsBase)
@@ -253,15 +257,188 @@ class IamDataFrameTimeseriesComparisonSpec:
         Prefix to add to the values of the result `IamDataFrame` in each
         dimension (e.g., `{'variable': 'Harmonization Comparison|'}). Empty dict
         by default.
-    dim_suffic : Mapping[str, str]
+        *NB* No separator is added between the prefix and the original value
+        (such as a pipe character for variable names). You must add this
+        explicitly if it is desired.
+    dim_suffix : Mapping[str, str]
         Suffix to add to the values of the result `IamDataFrame` in each
         dimension (e.g., `{'variable': '|Absolute Difference'}). Empty dict by
         default.
+        *NB* No separator is added between the original value and the suffix
+        (such as a pipe character for variable names). You must add this
+        explicitly if it is desired.
+    match_time : bool, optional
+        Whether to match the time dimension of the data and target. If `True`,
+        the time dimension will be added to `match_dims`. Optional, by default
+        True.
     """
     compare_func: Callable[[IamDataFrame, IamDataFrame], IamDataFrame]
     match_dims: tuple[str, ...]
+    match_time: bool = True
     dim_prefix: Mapping[str, str] = dataclasses.field(default_factory=dict)
     dim_suffix: Mapping[str, str] = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.match_time:
+            super().__setattr__('match_dims', (*self.match_dims, TIMEDIM))
+            # Have to use super().__setattr__ to circumvent the frozen attribute
 ###END class IamDataFrameTimeseriesComparisonSpec
 
 
+class IamDataFrameTimeseriesVetter(
+    IamDataFrameTargetVetter[IamDataFrame, StatusType],
+    tp.Generic[StatusType]
+):
+    """Base class for checking an `IamDataFrame` against a timeseries target.
+
+    The `.check` method of this class will select data from an `IamDataFrame`
+    based on the filter provided to the `__init__` method, perform one or a
+    sequence of operations (also provided to `__init__`) to compare the selected
+    data to the target timeseries and produce a data set of time series
+    representing the results of each comparison and return an
+    `IamDataFrameTimeseriesCheckResult` object with the resulting dataset along
+    with a status value.
+
+    Attributes
+    ----------
+    comparisons : list of IamDataFrameTimeseriesComparisonSpec
+        The comparison operations to perform on the data and target timeseries.
+    """
+    comparisons: list[IamDataFrameTimeseriesComparisonSpec]
+
+    @property
+    def target(self) -> IamDataFrame:
+        """The target `IamDataFrame` to check against."""
+        return self.target_value
+    ###END property def IamDataFrameTimeseriesVetter.target
+
+    def __init__(
+            self,
+            filter: Mapping[str, tp.Any] \
+                | Callable[[IamDataFrame], IamDataFrame],
+            target: IamDataFrame,
+            comparisons: Sequence[IamDataFrameTimeseriesComparisonSpec],
+            status_mapping: Callable[[IamDataFrame], StatusType]
+    ):
+        """
+        Parameters
+        ----------
+        filter : Mapping[str, tp.Any] | Callable[[IamDataFrame], IamDataFrame]
+            A filter to apply to the data before checking it against the target.
+            Can be a callable that takes an `IamDataFrame` as input and returns
+            an `IamDataFrame` as output, or a dict of filters to pass to the
+            `IamDataFrame.filter` method.
+        target : IamDataFrame
+            The target `IamDataFrame` to check against.
+        comparisons : Sequence[IamDataFrameTimeseriesComparisonSpec]
+            The comparison operations to perform on the data and target
+            timeseries. The comparison functions will be called in the order
+            they are given in this sequence, and the results returned by each
+            will be concatenated to form the final result.
+        status_mapping : Callable[[IamDataFrame], StatusType]
+            A function that takes the output `IamDataFrame` from the comparison
+            functions as input and returns a status value.
+        """
+        super().__init__(
+            filter=filter,
+            target=target,
+            compare_func=self._do_comparisons,
+            results_type=IamDataFrameTimeseriesCheckResult,
+            status_mapping=status_mapping
+        )
+        self.comparisons = list(comparisons)
+    ###END def IamDataFrameTimeseriesVetter.__init__
+
+    @staticmethod
+    def _make_one_comparison(
+            data: IamDataFrame,
+            target: IamDataFrame,
+            comparison: IamDataFrameTimeseriesComparisonSpec
+    ) -> IamDataFrame:
+        """Perform a single comparison operation on the data and target.
+
+        Parameters
+        ----------
+        data : IamDataFrame
+            The data to be compared.
+        comparison : IamDataFrameTimeseriesComparisonSpec
+            The comparison operation to perform.
+
+        Returns
+        -------
+        IamDataFrame
+            The result of the comparison.
+        """
+        broadcast_dims: list[str] = [_dim for _dim in data.dimensions
+                                     if _dim not in comparison.match_dims]
+        target_broadcast_dim_values: dict[str, tp.Any] = {
+            _dim: getattr(target, _dim) for _dim in broadcast_dims
+        }
+        for _dim, _val in target_broadcast_dim_values.items():
+            if len(_val) > 1:
+                raise ValueError(
+                    f"Target has more than one unique value in dimension {_dim}."
+                )
+            target_broadcast_dim_values[_dim] = _val[0]
+        target_broadcasted: IamDataFrame = pyam.concat(
+            [
+                target.rename({_dim: {target_broadcast_dim_values[_dim]: _dataval}})
+                for _dim in broadcast_dims for _dataval in getattr(data, _dim)
+            ]
+        )
+        compared: IamDataFrame = comparison.compare_func(data, target_broadcasted)
+        # Create a dict that will rename each value in each dimension in
+        # `comparison.dim_prefix` and `comparison.dim_suffix` to add the prefix
+        # and suffix, respectively.
+        rename_dict: dict[str, dict[str, str]] = {
+            _dim: {
+                _val: f"{comparison.dim_prefix.get(_dim, '')}{_val}{comparison.dim_suffix.get(_dim, '')}"
+                for _val in getattr(compared, _dim)
+            }
+            for _dim in set((*comparison.dim_prefix.keys(),
+                             *comparison.dim_suffix.keys()))
+        }
+        return notnone(
+            compared.rename(
+                mapping=rename_dict,
+                append=False,
+                inplace=False
+            )
+        )
+        # return comparison.compare_func(
+        #     data.filter(**{dim: data[dim].unique()[0] for dim in comparison.match_dims}),
+        #     self.target.filter(**{dim: self.target[dim].unique()[0] for dim in comparison.match_dims})
+        # ).rename(
+        #     **comparison.dim_prefix,
+        #     **comparison.dim_suffix
+        # )
+    ###END def IamDataFrameTimeseriesVetter._make_one_comparison
+
+    def _do_comparisons(self, data: IamDataFrame, target: IamDataFrame) -> IamDataFrame:
+        """Perform the comparison operations on the data and target timeseries.
+
+        Parameters
+        ----------
+        data : IamDataFrame
+            The data to be compared.
+        target : IamDataFrame
+            The target timeseries.
+
+        Returns
+        -------
+        IamDataFrame
+            The result of the comparison.
+        """
+        data = self.filter(data)
+        result: IamDataFrame = pyam.concat(
+            [
+                self._make_one_comparison(
+                    data=data,
+                    target=target,
+                    comparison=comparison
+                )
+                for comparison in self.comparisons
+            ]
+        )
+        return result
+    ###END def IamDataFrameTimeseriesVetter._do_comparisons
