@@ -241,7 +241,12 @@ class TargetCheckVetter(
     ]:
         measure = self.compute_measure(value, self.target_value)
         status = self.status_mapping(measure)
-        return self.result_type(value, self.target_value, measure, status)
+        return self.result_type(
+            value=value,
+            target_value=self.target_value,
+            measure=measure,
+            status=status
+        )
     ###END def TargetCheckVetter.check
 
 ###END class TargetCheckVetter
