@@ -2,7 +2,8 @@
 import typing as tp
 import abc
 import enum
-from collections.abc import Mapping, Callable
+from collections.abc import Mapping, Callable, Sequence
+import dataclasses
 
 from pyam import IamDataFrame
 
@@ -109,7 +110,7 @@ class IamDataFrameTargetCheckResult(
     tp.Generic[MeasureType, StatusType]
 ):
     """Generic base class for result of checking IamDataFrame against a target.
-    
+ 
     Does not contain additional functionality relative to the
     `TargetCheckResult` base class, only adds type hints and serves as a base
     class for more specific implementations for checking IamDataFrame instances
@@ -130,7 +131,7 @@ class IamDataFrameTargetVetter(
     tp.Generic[MeasureType, StatusType]
 ):
     """Base class for checking an `IamDataFrame` against a target.
-    
+ 
     Attributes
     ----------
     filter : Callable[[IamDataFrame], IamDataFrame]
@@ -204,3 +205,63 @@ class IamDataFrameTargetVetter(
     ###END def IamDataFrameTargetVetter.check
 
 ###END class IamDataFrameTargetVetter
+
+
+class IamDataFrameTimeseriesCheckResult(
+    IamDataFrameTargetCheckResult[IamDataFrame, StatusType],
+    tp.Generic[StatusType]
+):
+    """Base class for result of checking IamDataFrame timeseries against a target.
+ 
+    Does not contain additional functionality relative to the
+    `IamDataFrameTargetCheckResult` base class, only adds type hints and serves
+    as a base class for more specific implementations for checking IamDataFrame
+    instances against a target timeseries of another IamDataFrame.
+    """
+    ...
+###END class IamDataFrameTimeseriesCheckResult
+
+
+@dataclasses.dataclass(kw_only=True, frozen=True)
+class IamDataFrameTimeseriesComparisonSpec:
+    """Specification for comparing two IamDataFrame instances as timeseries.
+ 
+    Attributes
+    ----------
+    compare_func : Callable[[IamDataFrame, IamDataFrame], IamDataFrame]
+        The function that takes the data and target, respectively, as the first
+        two parameters, and returns a new `IamDataFrame` with the result. The
+        data will be filtered by the `filter` attribute of an instance of
+        `IamDataFrameTimeseriesVetter` before being passed to this function.
+        The values in the dimension(s) of the data given by the `match_dim`
+        attribute must match the values in the same dimension(s) of the target.
+        The values of the target in other dimensions will be broadcast to match
+        the data (note that the target must have only one unique value in each
+        of those dimensions, or a `ValueError` will be raised).
+        *NB* The function is expected to check and account for different units
+        in the data and target, and to set appropriate units for the result.
+        This will often be done automatically if the arithmetic methods of
+        `pyam.IamDataFrame` are used, but that is not always the case.
+    match_dims : tuple of str
+        The dimension(s) of the data and target that must match for the
+        comparison. The values in these dimensions will be used to match the
+        data and target, and the values in the other dimensions of the target
+        will be broadcast to match the data. Note that this parameter must be
+        passed to `__init__` as a sequence of strings, even if only one string
+        is passed.
+    dim_prefix : Mapping[str, str], Optional
+        Prefix to add to the values of the result `IamDataFrame` in each
+        dimension (e.g., `{'variable': 'Harmonization Comparison|'}). Empty dict
+        by default.
+    dim_suffic : Mapping[str, str]
+        Suffix to add to the values of the result `IamDataFrame` in each
+        dimension (e.g., `{'variable': '|Absolute Difference'}). Empty dict by
+        default.
+    """
+    compare_func: Callable[[IamDataFrame, IamDataFrame], IamDataFrame]
+    match_dims: tuple[str, ...]
+    dim_prefix: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    dim_suffix: Mapping[str, str] = dataclasses.field(default_factory=dict)
+###END class IamDataFrameTimeseriesComparisonSpec
+
+
