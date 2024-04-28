@@ -118,7 +118,6 @@ the target value or range."""
 class TargetCheckResult(
         VettingResultsBase[StatusType],
         tp.Generic[QuantityType, TargetType, MeasureType, StatusType],
-        abc.ABC
 ):
     """Base class for checking that a quantity is close to a target value or range.
 
@@ -158,17 +157,18 @@ class TargetCheckResult(
 ###END class TargetCheckResultsBase
 
 
+TargetCheckResultTypeVar = tp.TypeVar(
+    'TargetCheckResultTypeVar',
+    bound=TargetCheckResult
+)
+
+
 class TargetCheckVetter(
     Vetter[
         QuantityType,
-        TargetCheckResult[
-            QuantityType,
-            TargetType,
-            MeasureType,
-            StatusType
-        ]
+        TargetCheckResultTypeVar
     ],
-    tp.Generic[QuantityType, TargetType, MeasureType, StatusType],
+    tp.Generic[QuantityType, TargetType, MeasureType, StatusType, TargetCheckResultTypeVar],
 ):
     """Base class for performing vetting checks on a quantity with respect to a
     target value or range.
