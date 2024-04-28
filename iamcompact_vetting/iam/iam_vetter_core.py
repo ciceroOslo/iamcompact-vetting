@@ -32,6 +32,11 @@ TVar = tp.TypeVar('TVar')
 
 def notnone(value: TVar | None) -> TVar:
     """Ensure that a value is not None.
+
+    This function is useful for both ensuring that filter values are not None,
+    and to avoid type checking errors, given that many functions in the pyam
+    package return None when no data is found, and so can result in type
+    checking errors.
     """
     if value is None:
         raise ValueError("Value cannot be None.")
