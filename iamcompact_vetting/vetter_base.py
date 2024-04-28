@@ -198,12 +198,20 @@ class TargetCheckVetter(
             MeasureType,
             StatusType
         ]
-    ] = TargetCheckResult
+    ]
 
     def __init__(
             self,
             target_value: TargetType,
             compute_measure: tp.Callable[[QuantityType, TargetType], MeasureType],
+            result_type: tp.Type[
+                TargetCheckResult[
+                    QuantityType,
+                    TargetType,
+                    MeasureType,
+                    StatusType
+                ]
+            ],
             status_mapping: tp.Callable[[MeasureType], StatusType]
     ):
         """
@@ -214,11 +222,17 @@ class TargetCheckVetter(
         compute_measure : Callable[[QuantityType, TargetType], MeasureType]
             The function that computes how close the quantity is to the target
             value, and returns a measure of the given type.
+        result_type : Type[TargetCheckResult]
+            The class of the results of the check. Should be a subclass of
+            `TargetCheckResult`. Its `__init__` method must have the same
+            signature as `TargetCheckResult.__init__` (it can accept additional
+            optional keyword arguments, but these will not be used).
         status_mapping: Callable[[MeasureType], StatusType]
             The function that maps the measure to a status.
         """
         self.target_value = target_value
         self.compute_measure = compute_measure
+        self.result_type = result_type
         self.status_mapping = status_mapping
     ###END def TargetCheckVetter.__init__
 
