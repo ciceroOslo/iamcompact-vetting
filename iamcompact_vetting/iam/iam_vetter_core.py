@@ -129,7 +129,18 @@ class IamDataFrameTargetVetter(
     ],
     tp.Generic[MeasureType, StatusType]
 ):
-    """Base class for checking an `IamDataFrame` against a target."""
+    """Base class for checking an `IamDataFrame` against a target.
+    
+    Attributes
+    ----------
+    filter : Callable[[IamDataFrame], IamDataFrame]
+        A filter to apply to the data before checking it against the target.
+        Will be called on the data passed to `self.check` before the check is
+        performed. Should usually select the data to be compared from a larger
+        dataset.
+    """
+
+    filter: Callable[[IamDataFrame], IamDataFrame]
 
     def __init__(
             self,
@@ -168,6 +179,12 @@ class IamDataFrameTargetVetter(
             result_type=results_type,
             status_mapping=status_mapping
         )
+        if isinstance(filter, Mapping):
+            self.filter = lambda data: notnone(data.filter(**filter))
+        elif callable(filter):
+            self.filter = filter
+        else:
+            raise TypeError("`filter` must be a Mapping or a callable.")
     ###END def IamDataFrameTargetVetter.__init__
 
     def check(self, data: IamDataFrame) -> IamDataFrameTargetCheckResult[MeasureType, StatusType]:
@@ -183,6 +200,7 @@ class IamDataFrameTargetVetter(
         IamDataFrameTargetCheckResult[MeasureType, StatusType]
             The results of the check.
         """
-        ...
+        return super().check(self.filter(data))
+    ###END def IamDataFrameTargetVetter.check
 
 ###END class IamDataFrameTargetVetter
