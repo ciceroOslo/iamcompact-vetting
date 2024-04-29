@@ -24,51 +24,28 @@ from iamcompact_vetting.iam.iam_vetter_core import IamDataFrameTimeseriesVetter
 # 'TWh/yr'.
 def construct_test_iamdf() -> IamDataFrame:
     """Construct a test IamDataFrame for testing the IamDataFrameTimeseriesVetter."""
-    data = [
-        ('ModelA', 'Scenario1', 'Region1', 'Primary Energy', 'EJ/yr', 2005, 1.0),
-        ('ModelA', 'Scenario1', 'Region1', 'Primary Energy', 'EJ/yr', 2010, 2.0),
-        ('ModelA', 'Scenario1', 'Region1', 'Primary Energy', 'EJ/yr', 2015, 3.5),
-        ('ModelA', 'Scenario1', 'Region1', 'Primary Energy', 'EJ/yr', 2020, 5.0),
-        ('ModelA', 'Scenario1', 'Region1', 'Primary Energy', 'EJ/yr', 2025, 5.5),
-        ('ModelA', 'Scenario1', 'Region1', 'Primary Energy', 'EJ/yr', 2030, 4.75),
-        ('ModelA', 'Scenario1', 'Region1', 'Secondary Energy|Electricity', 'EJ/yr', 2005, 0.1),
-        ('ModelA', 'Scenario1', 'Region1', 'Secondary Energy|Electricity', 'EJ/yr', 2010, 0.3),
-        ('ModelA', 'Scenario1', 'Region1', 'Secondary Energy|Electricity', 'EJ/yr', 2015, 0.5),
-        ('ModelA', 'Scenario1', 'Region1', 'Secondary Energy|Electricity', 'EJ/yr', 2020, 0.7),
-        ('ModelA', 'Scenario1', 'Region1', 'Secondary Energy|Electricity', 'EJ/yr', 2025, 0.9),
-        ('ModelA', 'Scenario1', 'Region1', 'Secondary Energy|Electricity', 'EJ/yr', 2030, 1.1),
-        ('ModelA', 'Scenario1', 'Region2', 'Primary Energy', 'EJ/yr', 2005, 30.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Primary Energy', 'EJ/yr', 2010, 40.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Primary Energy', 'EJ/yr', 2015, 50.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Primary Energy', 'EJ/yr', 2020, 60.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Primary Energy', 'EJ/yr', 2025, 70.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Primary Energy', 'EJ/yr', 2030, 80.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Secondary Energy|Electricity', 'EJ/yr', 2005, 3.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Secondary Energy|Electricity', 'EJ/yr', 2010, 4.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Secondary Energy|Electricity', 'EJ/yr', 2015, 5.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Secondary Energy|Electricity', 'EJ/yr', 2020, 6.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Secondary Energy|Electricity', 'EJ/yr', 2025, 7.0),
-        ('ModelA', 'Scenario1', 'Region2', 'Secondary Energy|Electricity', 'EJ/yr', 2030, 8.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Primary Energy', 'EJ/yr', 2005, 10.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Primary Energy', 'EJ/yr', 2010, 20.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Primary Energy', 'EJ/yr', 2015, 30.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Primary Energy', 'EJ/yr', 2020, 40.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Primary Energy', 'EJ/yr', 2025, 50.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Primary Energy', 'EJ/yr', 2030, 60.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Secondary Energy|Electricity', 'EJ/yr', 2005, 1.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Secondary Energy|Electricity', 'EJ/yr', 2010, 2.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Secondary Energy|Electricity', 'EJ/yr', 2015, 3.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Secondary Energy|Electricity', 'EJ/yr', 2020, 4.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Secondary Energy|Electricity', 'EJ/yr', 2025, 5.0),
-        ('ModelA', 'Scenario1', 'Region3', 'Secondary Energy|Electricity', 'EJ/yr', 2030, 6.0),
-        ('ModelA', 'Scenario2', 'Region1', 'Primary Energy', 'EJ/yr', 2005, 1.0),
-        ('ModelA', 'Scenario2', 'Region1', 'Primary Energy', 'EJ/yr', 2010, 2.0),
-        ('ModelA', 'Scenario2', 'Region1', 'Primary Energy', 'EJ/yr', 2015, 3.5),
-        ('ModelA', 'Scenario2', 'Region1', 'Primary Energy', 'EJ/yr', 2020, 5.0),
-        ('ModelA', 'Scenario2', 'Region1', 'Primary Energy', 'EJ/yr', 2025, 5.5),
-        ('ModelA', 'Scenario2', 'Region1', 'Primary Energy', 'EJ/yr', 2030, 4.75),
-        ('ModelA', 'Scenario2', 'Region1', 'Secondary Energy|Electricity', 'EJ/yr', 2005, 0.1),
-        ('ModelA', 'Scenario2', 'Region1', 'Secondary Energy|Electricity', 'EJ/yr', 2010, 0.3),
-        ('ModelA', 'Scenario2', 'Region1', 'Secondary Energy|Electricity', 'EJ/yr', 2015, 0.5),
-        ('ModelA', 'Scenario2', 'Region1', 'Secondary Energy|Electricity', 'EJ/yr',
+    data_models: tp.List[str] = ['ModelA', 'ModelB']
+    data_scenarios: list[str] = ['Scenario1', 'Scenario2']
+    regions: list[str] = ['Region1', 'Region2', 'Region3']
+    years: list[int] = [2005, 2010, 2015, 2020, 2025, 2030]
+    variables: list[str] = ['Primary Energy', 'Secondary Energy|Electricity']
+    index_without_units: pd.MultiIndex = pd.MultiIndex.from_product(
+        [data_models, data_scenarios, regions, variables, years],
+        names=['model', 'scenario', 'region', 'variable', 'year']
+    )
+    units_arrays: list[str] = [
+        'TWh/yr' if _model == 'ModelB' and _variable == 'Secondary Energy|Electricity'
+        else 'EJ/yr'
+        for _model, _variable in zip(index_without_units.get_level_values('model'),
+                                     index_without_units.get_level_values('variable'))
     ]
+    index: pd.MultiIndex = pd.DataFrame(  # type: ignore
+        data=units_arrays,
+        index=index_without_units,
+        columns=['unit']
+    ).set_index('unit', append=True).index
+    values: pd.Series = pd.Series(
+        data=[1.0 + 99.0 * i / 5.0 for i in range(6 * 2 * 3 * 2 * 2)],
+        index=index
+    )
+    return IamDataFrame(data=values.reset_index(name='value'))
