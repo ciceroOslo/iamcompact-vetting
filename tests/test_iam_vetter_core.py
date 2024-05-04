@@ -12,6 +12,7 @@ import pyam
 import numpy as np
 
 from iamcompact_vetting.iam.iam_vetter_core import IamDataFrameTimeseriesVetter
+from iamcompact_vetting.pdhelpers import replace_level_values
 
 
 TV = tp.TypeVar('TV')
@@ -52,7 +53,7 @@ def construct_test_iamdf() -> tuple[IamDataFrame, IamDataFrame]:
         randomly 1000/3.6 and 100000/3.6 (the same range as the `EJ/yr` values,
         but converted to `TWh/yr`).
     """
-    data_models: tp.List[str] = ['ModelA', 'ModelB']
+    data_models: list[str] = ['ModelA', 'ModelB']
     data_scenarios: list[str] = ['Scenario1', 'Scenario2']
     regions: list[str] = ['Region1', 'Region2', 'Region3']
     years: list[int] = [2005, 2010, 2015, 2020, 2025, 2030]
@@ -76,13 +77,16 @@ def construct_test_iamdf() -> tuple[IamDataFrame, IamDataFrame]:
         data=np.random.rand(len(index)) * 99.0 + 1.0,
         index=index
     )
-    # Create a target series that varies randomly between 0.9 and 1.1 times the
-    # value of target_series.
-    diff_factors: pd.Series = pd.Series(
-        data=np.random.rand(len(index)) * 0.2 + 0.9,
-        index=index
+    # Create a target series that is numerically equal to data_series for
+    # `model == "ModelB"`, but with the model name replaced by `"Target Model"`
+    target_series: pd.Series = data_series.xs('ModelB', level='model',
+                                              drop_level=False)
+    target_series = replace_level_values(
+        target_series,
+        mapping={'ModelB': 'Target Model'},
+        level_name='model'
     )
-    target_series: pd.Series = data_series * diff_factors
+
     # Multiply the target_series by 1000 and divide by 3.6 where the unit is
     # 'TWh/yr' and the model is 'ModelB' and the variable is 'Secondary
     # Energy|Electricity'.
