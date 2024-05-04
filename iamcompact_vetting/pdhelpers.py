@@ -15,7 +15,7 @@ PDType = tp.TypeVar("PDType", pd.DataFrame, pd.Series)
 
 def replace_level_values(
         df: PDType,
-        mapping: Mapping[Hashable, Hashable],
+        mapping: Mapping[tp.Any, Hashable],
         leveln: tp.Optional[int] = None,
         level_name: tp.Optional[str] = None
 ) -> PDType:
@@ -40,6 +40,16 @@ def replace_level_values(
     -------
     pd.DataFrame
         DataFrame with replaced values in the specified level.
+
+    Raises
+    ------
+    TypeError
+        If the DataFrame does not have a MultiIndex.
+    ValueError
+        If neither `leveln` nor `level_name` is specified, or if both are
+        specified.
+    IndexError
+        If `leveln` is out of range.
     """
     if not isinstance(df.index, pd.MultiIndex):
         raise TypeError("DataFrame must have a MultiIndex.")
@@ -51,6 +61,11 @@ def replace_level_values(
         raise ValueError("Only one of `leveln` or `level_name` may be specified.")
     else:
         level_name = df.index.names[leveln]
+
+    # Check that the keys in `mapping` are unique, and raise a ValueError if
+    # they are not.
+    if len(mapping) != len(set(mapping)):
+        raise ValueError("Keys in `mapping` must be unique.")
 
     # First get the level and map the values directly. If the resulting index
     # object has unique values, we can set that using `set_levels` and be done.
