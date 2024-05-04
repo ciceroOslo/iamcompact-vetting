@@ -168,7 +168,8 @@ class TargetCheckVetter(
         QuantityType,
         TargetCheckResultTypeVar
     ],
-    tp.Generic[QuantityType, TargetType, MeasureType, StatusType, TargetCheckResultTypeVar],
+    tp.Generic[QuantityType, TargetType, MeasureType,
+               StatusType, TargetCheckResultTypeVar],
 ):
     """Base class for performing vetting checks on a quantity with respect to a
     target value or range.

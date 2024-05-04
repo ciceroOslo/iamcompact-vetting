@@ -442,3 +442,5 @@ class IamDataFrameTimeseriesVetter(
         )
         return result
     ###END def IamDataFrameTimeseriesVetter._do_comparisons
+
+###END class IamDataFrameTimeseriesVetter
