@@ -19,7 +19,8 @@ import pandas as pd
 
 TV = tp.TypeVar('TV')
 def notnone(x: TV|None) -> TV:
-    assert x is not None
+    if x is None:
+        raise ValueError('Value is None')
     return x
 ###END def notnone
 
@@ -101,3 +102,43 @@ def make_consistent_units(
             pyam.IamDataFrame(converted_data_series, meta=df.meta)
     return converted_df
 ###END def make_consistent_units
+
+
+def as_pandas_series(
+        df: pyam.IamDataFrame,
+        name: tp.Optional[str] = None,
+        copy: bool = True
+) -> pd.Series:
+    """Get the data of a `pyam.IamDataFram` as `pandas.Series` with MultiIndex.
+
+    This function currently does the same as getting the private attribute
+    `df._data` or `df._data.copy()` of the `pyam.IamDataFrame` directly, but
+    should be used instead of that to avoid breaking changes in the future.
+
+    Parameters
+    ----------
+    df : pyam.IamDataFrame
+        IamDataFrame to get the data from.
+    name : str, optional
+        Name of the returned Series. Optional, defaults to None.
+    copy : bool, optional
+        Whether to return a copy of the data. If necessary, this parameter can
+        be set to False to improve performance, but this carries some risks
+        and may be removed or deprecated in the future. If False, the private
+        attribute `df._data` is returned. Note that any changes made to the
+        returned Series can then cause changes to and potentially corrupt the
+        original IamDataFrame. Also, if the internal attributes of
+        `pyam.IamDataFrame` are changed in the future, the `_data` attribute may
+        be removed or changed, and any code using `copy=False` may then break.
+        Optional, defaults to True.
+
+    Returns
+    -------
+    pd.Series
+        Data of the IamDataFrame as a Series.
+    """
+    data_ser: pd.Series = df._data if not copy else df._data.copy()
+    if name is not None:
+        data_ser.name = name
+    return data_ser
+###END def as_pandas_series

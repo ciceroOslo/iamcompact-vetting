@@ -6,7 +6,10 @@ import unittest
 import pyam
 import pandas as pd
 
-from iamcompact_vetting.pyam_helpers import make_consistent_units
+from iamcompact_vetting.pyam_helpers import (
+    make_consistent_units,
+    as_pandas_series,
+)
 
 
 class TestMakeConsistentUnits(unittest.TestCase):
@@ -91,3 +94,60 @@ class TestMakeConsistentUnits(unittest.TestCase):
         # Assert that the values in the result are the same as expected
         for variable in result.variable:
             self.assertTrue(result.equals(expected_df))
+    ###END def TestMakeConsistentUnits.test_make_consistent_units_with_different_units
+
+###END class TestMakeConsistentUnits
+
+
+class TestAsPandasSeries(unittest.TestCase):
+    """Tests for the as_pandas_series function."""
+
+    # Returns a Series with the same data as the input IamDataFrame.
+    def test_as_pandas_series(self):
+        # Create a valid IamDataFrame
+        expected_values = pd.Series(
+            data=[1, 2],
+            index=pd.MultiIndex.from_tuples(
+                [
+                    ('model1', 'scenario1', 'region1', 'variable1', 'unit1', 2020),
+                    ('model2', 'scenario2', 'region2', 'variable2', 'unit2', 2030)
+                ],
+                names=['model', 'scenario', 'region', 'variable', 'unit', 'year']
+            ),
+        )
+        df = pyam.IamDataFrame(expected_values)
+
+        # Call the function under test
+        result = as_pandas_series(df)
+
+        # Check if the result is a pandas Series
+        self.assertIsInstance(result, pd.Series)
+
+        # Check if the result has a MultiIndex
+        self.assertIsInstance(result.index, pd.MultiIndex)
+
+        # Check if the result has the expected values
+        pd.testing.assert_series_equal(result, expected_values)
+    ###END def TestAsPandasSeries.test_as_pandas_series
+
+    # Returns an empty Series when given an empty IamDataFrame.
+    def test_empty_IamDataFrame(self):
+        # Create an empty IamDataFrame
+        df = pyam.IamDataFrame(
+            pd.Series(
+                data=[],
+                index=pd.MultiIndex.from_tuples(
+                    [],
+                    names=['model', 'scenario', 'region', 'variable', 'unit', 'year']
+                )
+            )
+        )
+    
+        # Call the function under test
+        result = as_pandas_series(df)
+    
+        # Check if the result is an empty Series
+        self.assertTrue(result.empty)
+    ###END def TestAsPandasSeries.test_empty_IamDataFrame
+
+###END class TestAsPandasSeries
