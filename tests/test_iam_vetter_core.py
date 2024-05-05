@@ -31,7 +31,12 @@ def notnone(x: TV|None) -> TV:
 # all cases, and 'Secondary Energy|Electricity' should have numbers that vary
 # between 0.1 and 10 when the unit is 'EJ/yr' and 30 and 3000 when the unit is
 # 'TWh/yr'.
-def construct_test_iamdf() -> tuple[IamDataFrame, IamDataFrame]:
+def construct_test_iamdf() -> tuple[
+        IamDataFrame,
+        IamDataFrame,
+        IamDataFrame,
+        IamDataFrame
+]:
     """Construct a test IamDataFrame for testing the IamDataFrameTimeseriesVetter.
     
     Returns
@@ -92,6 +97,15 @@ def construct_test_iamdf() -> tuple[IamDataFrame, IamDataFrame]:
         mapping={'ModelB': 'Target Model'},
         level_name='model'
     )
+    target_series_allEJ = replace_level_values(
+        target_series,
+        mapping={'TWh/yr': 'EJ/yr'},
+        level_name='unit'
+    )
+    target_series_electTWb = target_series.where(
+        target_series.index.get_level_values('unit') != 'TWh/yr',
+        other=target_series * 1000.0 / 3.6
+    )
 
     # Multiply the target_series by 1000 and divide by 3.6 where the unit is
     # 'TWh/yr' and the model is 'ModelB' and the variable is 'Secondary
@@ -102,10 +116,48 @@ def construct_test_iamdf() -> tuple[IamDataFrame, IamDataFrame]:
         (data_series.index.get_level_values('variable') == 'Primary Energy'),
         other=data_series * 1000.0 / 3.6
     )
+
+    diff_series: pd.Series = pd.concat(
+        [
+            data_series.xs('ModelA', level='model', drop_level=False) \
+                - replace_level_values(
+                    target_series_allEJ,
+                    mapping={'Target Model': 'ModelA'},
+                    level_name='model'
+                ),
+            data_series.xs('ModelB', level='model', drop_level=False) \
+                - replace_level_values(
+                    target_series_electTWb,
+                    mapping={'Target Model': 'ModelB'},
+                    level_name='model'
+                )
+        ]
+    )
+    ratio_series: pd.Series = pd.concat(
+        [
+            data_series.xs('ModelA', level='model', drop_level=False) \
+                / replace_level_values(
+                    target_series_allEJ,
+                    mapping={'Target Model': 'ModelA'},
+                    level_name='model'
+                ),
+            data_series.xs('ModelB', level='model', drop_level=False) \
+                / replace_level_values(
+                    target_series_electTWb,
+                    mapping={'Target Model': 'ModelB'},
+                    level_name='model'
+                )
+        ]
+    )
+    ratio_series = replace_level_values(
+        ratio_series,
+        mapping={_unit: '' for _unit in ['EJ/yr', 'TWh/yr']},
+        level_name='unit'
+    )
     # The units of the target_series should be 'EJ/yr' everywhere, and not
     # converted, so set the `unit` level of the target series to 'EJ/yr'
     # everywhere.
-    assert isinstance(target_series.index, pd.MultiIndex)
+    assert isinstance(target_series_allEJ.index, pd.MultiIndex)
     # target_series.index = target_series.index.set_levels(['EJ/yr'], level='unit')
     # values: pd.Series = pd.Series(
     #     data=[1.0 + 99.0 * i / 5.0 for i in range(6 * 2 * 3 * 2 * 2)],
@@ -113,7 +165,7 @@ def construct_test_iamdf() -> tuple[IamDataFrame, IamDataFrame]:
     # )
     return (
         IamDataFrame(data_series),
-        notnone(IamDataFrame(target_series).rename(
-            {'unit': {'TWh/yr': 'EJ/yr'}}
-        ))
+        notnone(IamDataFrame(target_series_allEJ)),
+        notnone(IamDataFrame(diff_series)),
+        notnone(IamDataFrame(ratio_series))
     )
