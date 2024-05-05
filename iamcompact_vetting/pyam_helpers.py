@@ -77,23 +77,25 @@ def make_consistent_units(
         # If _var has a single unit in `match_df`, convert it to that unit using
         # `pyam.IamDataFrame.convert_unit`.
         target_unit: str|list[str] = match_unit_mapping[_var]
-        if isinstance(target_unit, str):
-            converted_dfs.append(
-                notnone(
-                    notnone(df.filter(variable=_var)) \
-                        .convert_unit(_var, to=target_unit)
+        source_units: str|list[str] = df_unit_mapping[_var]
+        if isinstance(source_units, str):
+            source_units = [source_units]
+        for _source_unit in source_units:
+            if isinstance(target_unit, str):
+                converted_dfs.append(
+                    notnone(
+                        notnone(df.filter(variable=_var)) \
+                            .convert_unit(_source_unit, to=target_unit)
+                    )
                 )
-            )
-        else:
-            raise NotImplementedError(
-                'Conversion using a target dataframe with more than one unit '
-                'for a single variable is not yet implemented.'
-            )
+            else:
+                raise NotImplementedError(
+                    'Conversion using a target dataframe with more than one '
+                    'unit for a single variable is not yet implemented.'
+                )
     converted_data_series: pd.Series = pd.concat(
         [matching_df._data, *[_df._data for _df in converted_dfs]]
     )
-    # Reorder rows to match the data of the original IamDataFrame.
-    converted_data_series = converted_data_series.reindex(df._data.index)
     converted_df: pyam.IamDataFrame = pyam.IamDataFrame(converted_data_series) \
         if not keep_meta else \
             pyam.IamDataFrame(converted_data_series, meta=df.meta)
