@@ -36,11 +36,12 @@ def construct_test_iamdf() -> tuple[IamDataFrame, IamDataFrame]:
     
     Returns
     -------
-    data_series, target_series : (IamDataFrame, IamDataFrame)
-        A tuple of two IamDataFrames, the first being the test IamDataFrame and
+    data_df, target_df, diff_df, ratio_df : (IamDataFrame, IamDataFrame)
+        A tuple of four IamDataFrames, the first being the test IamDataFrame and
         the second being the target IamDataFrame. They each have the following
         structure:
-          - data_models: ['ModelA', 'ModelB']
+          - data_models: ['ModelA', 'ModelB'] for `data_df` and ['Target Model']
+            for `target_df`
           - data_scenarios: ['Scenario1', 'Scenario2']
           - regions: ['Region1', 'Region2', 'Region3']
           - years: [2005, 2010, 2015, 2020, 2025, 2030]
@@ -52,6 +53,11 @@ def construct_test_iamdf() -> tuple[IamDataFrame, IamDataFrame]:
         'Secondary Energy|Electricity' for 'ModelB' have units `TWh/yr` and vary
         randomly 1000/3.6 and 100000/3.6 (the same range as the `EJ/yr` values,
         but converted to `TWh/yr`).
+        The last two IamDataFrames have the same structure as `data_df`, and
+        values equal to the difference and ratio of the values in `data_df`
+        relative to `target_df`, respectively (matching on all dimensions
+        except for the `model` and `unit` dimensions). They are both in units
+        of `EJ/yr`.
     """
     data_models: list[str] = ['ModelA', 'ModelB']
     data_scenarios: list[str] = ['Scenario1', 'Scenario2']
