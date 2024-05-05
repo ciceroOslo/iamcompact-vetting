@@ -4,6 +4,8 @@ import abc
 import enum
 from collections.abc import Mapping, Callable, Sequence
 import dataclasses
+import logging
+import functools
 
 from pyam import IamDataFrame
 import pyam
@@ -14,6 +16,7 @@ from iamcompact_vetting.vetter_base import (
     TargetCheckResult,
     TargetCheckVetter
 )
+from .. import pyam_helpers
 
 
 
@@ -33,6 +36,42 @@ StatusType = tp.TypeVar('StatusType', bound=enum.Enum)
 
 TVar = tp.TypeVar('TVar')
 """Generic TypeVar for any type."""
+
+
+# Create a trivial logger object that does not log anything, but can be used in
+# cases where a logger is required but no logging is desired. The object should
+# be either an instance or a subclass instance of `logging.Logger`.
+class _TrivialLogger(logging.Logger):
+    def __init__(self):
+        super().__init__(name='TrivialLogger', level=logging.NOTSET)
+    ###END def _TrivialLogger.__init__
+
+    def log(self, *args, **kwargs):
+        pass
+    ###END def _TrivialLogger.log
+
+    def debug(self, *args, **kwargs):
+        pass
+    ###END def _TrivialLogger.debug
+
+    def info(self, *args, **kwargs):
+        pass
+    ###END def _TrivialLogger.info
+
+    def warning(self, *args, **kwargs):
+        pass
+    ###END def _TrivialLogger.warning
+
+    def error(self, *args, **kwargs):
+        pass
+    ###END def _TrivialLogger.error
+
+    def critical(self, *args, **kwargs):
+        pass
+    ###END def _TrivialLogger.critical
+
+###END class _TrivialLogger
+
 
 
 def notnone(value: TVar | None) -> TVar:
@@ -226,13 +265,13 @@ class IamDataFrameTimeseriesCheckResult(
 ###END class IamDataFrameTimeseriesCheckResult
 
 
-@dataclasses.dataclass(kw_only=True, frozen=True)
+@dataclasses.dataclass(kw_only=True)
 class IamDataFrameTimeseriesComparisonSpec:
     """Specification for comparing two IamDataFrame instances as timeseries.
  
     Attributes
     ----------
-    compare_func : Callable[[IamDataFrame, IamDataFrame], IamDataFrame]
+    compare_func : CompareFunc
         The function that takes the data and target, respectively, as the first
         two parameters, and returns a new `IamDataFrame` with the result. The
         data will be filtered by the `filter` attribute of an instance of
@@ -242,6 +281,17 @@ class IamDataFrameTimeseriesComparisonSpec:
         The values of the target in other dimensions will be broadcast to match
         the data (note that the target must have only one unique value in each
         of those dimensions, or a `ValueError` will be raised).
+        The precise parameters of `compare_func` must be as follows:
+            - data : IamDataFrame
+                The data to be compared.
+            - target : IamDataFrame
+                The target timeseries.
+            - logger : Optional[logging.Logger]
+                A logger to use for logging messages. Optional, by default None.
+                If None, no log messages should be written (although the
+                may define a logger internally for debugging purposes, or a
+                trivial logger that does nothing, to avoid frequent checks
+                of whether `logger` is None).
         *NB* The function is expected to check and account for different units
         in the data and target, and to set appropriate units for the result.
         This will often be done automatically if the arithmetic methods of
@@ -272,7 +322,15 @@ class IamDataFrameTimeseriesComparisonSpec:
         the time dimension will be added to `match_dims`. Optional, by default
         True.
     """
-    compare_func: Callable[[IamDataFrame, IamDataFrame], IamDataFrame]
+    class CompareFunc(tp.Protocol):
+        def __call__(
+                self,
+                data: IamDataFrame,
+                target: IamDataFrame,
+                logger: tp.Optional[logging.Logger] = None
+        ) -> IamDataFrame:
+            ...
+    compare_func: CompareFunc
     match_dims: tuple[str, ...]
     match_time: bool = True
     dim_prefix: Mapping[str, str] = dataclasses.field(default_factory=dict)
@@ -444,3 +502,129 @@ class IamDataFrameTimeseriesVetter(
     ###END def IamDataFrameTimeseriesVetter._do_comparisons
 
 ###END class IamDataFrameTimeseriesVetter
+
+
+class IamDataFrameTimeseriesVariableComparison(
+    IamDataFrameTimeseriesComparisonSpec
+):
+    """Comparison specification for comparing two IamDataFrame instances as timeseries.
+
+    Is similar to `IamDataFrameTimeseriesComparisonSpec`, but has the following
+    additional behavior, tailored for comparing variable values:
+        - The `target` IamDataFrame is converted to match the units of the
+          `data` IamDataFrame before the comparison is performed. The conversion
+          is done per variable, using `pyam_helpers.make_consistent_units`. As
+          a result, comparisons can be made performantly between `data` and
+          `target` by comparing the underlying `pandas.Series` objects directly
+          (though keep in mind that the provided comparison function must
+          then manually ensure that the units are set correctly for the result
+          if the comparison operation implies a change of units, such as taking
+          ratios or percentage-wise differences).
+        - `match_dims` is by default set to `('variable', 'region')`, in
+          addition to the time dimension.
+        - The class provides a decorator `log_variable_mismatches` that will
+          compare which variables are present in `data` and `target`. If a
+          logger is provided to the comparison function, the decorator will log
+          a message at level `logging.INFO` that lists variables present in
+          `data` but not in `target` (or no message if there are none), and at
+          level `logging.WARNING` that lists variables present in `target` but
+          not in `data` (or no message if there are none).
+    """
+
+    @staticmethod
+    def log_variable_mismatches(
+            compare_func: IamDataFrameTimeseriesComparisonSpec.CompareFunc
+    ) -> IamDataFrameTimeseriesComparisonSpec.CompareFunc:
+        """Decorator for comparing which variables are present in the data and target.
+
+        If a logger is provided to the comparison function, the decorator will
+        log a message at level `logging.INFO` that lists variables present in
+        `data` but not in `target` (or no message if there are none), and at
+        level `logging.WARNING` that lists variables present in `target` but
+        not in `data` (or no message if there are none).
+
+        Parameters
+        ----------
+        compare_func : IamDataFrameTimeseriesComparisonSpec.CompareFunc
+            The comparison function to decorate.
+
+        Returns
+        -------
+        IamDataFrameTimeseriesComparisonSpec.CompareFunc
+            The decorated comparison function.
+        """
+        @functools.wraps(compare_func)
+        def _decorated(
+                data: IamDataFrame,
+                target: IamDataFrame,
+                logger: tp.Optional[logging.Logger] = None
+        ) -> IamDataFrame:
+            data_vars: set[str] = set(data.variable)
+            target_vars: set[str] = set(target.variable)
+            if logger is not None:
+                missing_in_target: set[str] = data_vars - target_vars
+                missing_in_data: set[str] = target_vars - data_vars
+                if missing_in_target:
+                    logger.warning(
+                        f"Variables present in data but not in target: {missing_in_target}"
+                    )
+                if missing_in_data:
+                    logger.info(
+                        f"Variables present in target but not in data: {missing_in_data}"
+                    )
+            return compare_func(data, target, logger)
+        return _decorated
+    ###END def IamDataFrameTimeseriesVariableComparison.log_variable_mismatches
+
+    def _call_compare_func(
+            self,
+            data: IamDataFrame,
+            target: IamDataFrame,
+            logger: tp.Optional[logging.Logger] = None
+    ) -> IamDataFrame:
+        """Call the comparison function with the data and target.
+
+        Parameters
+        ----------
+        data : IamDataFrame
+            The data to be compared.
+        target : IamDataFrame
+            The target timeseries.
+        logger : Optional[logging.Logger], optional
+            A logger to use for logging messages. Optional, by default None.
+
+        Returns
+        -------
+        IamDataFrame
+            The result of the comparison.
+        """
+        target = pyam_helpers.make_consistent_units(
+            df=target,
+            match_df=data,
+            keep_meta=True
+        )
+        if logger is None:
+            logger = self.logger
+        return self._external_compare_func(data, target, logger)
+    ###END def IamDataFrameTimeseriesVariableComparison._call_compare_func
+
+    def __init__(
+        self,
+        compare_func: IamDataFrameTimeseriesComparisonSpec.CompareFunc,
+        match_dims: Sequence[str] = ('variable', 'region'),
+        dim_prefix: Mapping[str, str] = dataclasses.field(default_factory=dict),
+        dim_suffix: Mapping[str, str] = dataclasses.field(default_factory=dict),
+        logger: tp.Optional[logging.Logger] = None
+    ):
+        self.logger: logging.Logger|None = logger
+        self._external_compare_func: \
+            IamDataFrameTimeseriesComparisonSpec.CompareFunc = compare_func
+        super().__init__(
+            compare_func=self._call_compare_func,
+            match_dims=tuple(match_dims),
+            dim_prefix=dim_prefix,
+            dim_suffix=dim_suffix
+        )
+    ###END def IamDataFrameTimeseriesVariableComparison.__init__
+
+###END class IamDataFrameTimeseriesVariableComparison
