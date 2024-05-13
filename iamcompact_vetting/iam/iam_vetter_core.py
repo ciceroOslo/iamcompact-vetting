@@ -164,15 +164,21 @@ class IamDataFrameTargetCheckResult(
 ###END class IamDataFrameTargetCheckResult
 
 
+IamDataFrameTargetCheckResultType = tp.TypeVar(
+    'IamDataFrameTargetCheckResultType',
+    bound=IamDataFrameTargetCheckResult
+)
+
+
 class IamDataFrameTargetVetter(
     TargetCheckVetter[
         IamDataFrame,
         IamDataFrame,
         MeasureType,
         StatusType,
-        IamDataFrameTargetCheckResult[MeasureType, StatusType]
+        IamDataFrameTargetCheckResultType
     ],
-    tp.Generic[MeasureType, StatusType]
+    tp.Generic[IamDataFrameTargetCheckResultType, MeasureType, StatusType]
 ):
     """Base class for checking an `IamDataFrame` against a target.
  
@@ -191,7 +197,7 @@ class IamDataFrameTargetVetter(
             self,
             target: IamDataFrame,
             compare_func: Callable[[IamDataFrame, IamDataFrame], MeasureType],
-            results_type: tp.Type[IamDataFrameTargetCheckResult[MeasureType, StatusType]],
+            results_type: tp.Type[IamDataFrameTargetCheckResultType],
             status_mapping: Callable[[MeasureType], StatusType],
             filter: Mapping[str, tp.Any] \
                 | Callable[[IamDataFrame], IamDataFrame] = lambda _idf: _idf
@@ -234,7 +240,7 @@ class IamDataFrameTargetVetter(
             raise TypeError("`filter` must be a Mapping or a callable.")
     ###END def IamDataFrameTargetVetter.__init__
 
-    def check(self, data: IamDataFrame) -> IamDataFrameTargetCheckResult[MeasureType, StatusType]:
+    def check(self, data: IamDataFrame) -> IamDataFrameTargetCheckResultType:
         """Check the given `IamDataFrame` against the target.
 
         Parameters
@@ -361,7 +367,11 @@ ComparisonType = tp.TypeVar(
 
 
 class IamDataFrameTimeseriesVetter(
-    IamDataFrameTargetVetter[IamDataFrame, StatusType],
+    IamDataFrameTargetVetter[
+        IamDataFrameTimeseriesCheckResult[StatusType],
+        IamDataFrame,
+        StatusType
+    ],
     tp.Generic[ComparisonType, StatusType]
 ):
     """Base class for checking an `IamDataFrame` against a timeseries target.
