@@ -17,7 +17,7 @@ from iamcompact_vetting.vetter_base import (
     TargetCheckResult,
     TargetCheckVetter
 )
-from .. import pyam_helpers
+from iamcompact_vetting import pyam_helpers
 
 
 
@@ -189,21 +189,16 @@ class IamDataFrameTargetVetter(
 
     def __init__(
             self,
-            filter: Mapping[str, tp.Any] \
-                | Callable[[IamDataFrame], IamDataFrame],
             target: IamDataFrame,
             compare_func: Callable[[IamDataFrame, IamDataFrame], MeasureType],
             results_type: tp.Type[IamDataFrameTargetCheckResult[MeasureType, StatusType]],
-            status_mapping: Callable[[MeasureType], StatusType]
+            status_mapping: Callable[[MeasureType], StatusType],
+            filter: Mapping[str, tp.Any] \
+                | Callable[[IamDataFrame], IamDataFrame] = lambda _idf: _idf
     ):
         """
         Parameters
         ----------
-        filter : Mapping[str, tp.Any] | Callable[[IamDataFrame], IamDataFrame]
-            A filter to apply to the data before checking it against the target.
-            Can be a callable that takes an `IamDataFrame` as input and returns
-            an `IamDataFrame` as output, or a dict of filters to pass to the
-            `IamDataFrame.filter` method.
         target : IamDataFrame
             The target `IamDataFrame` to check against.
         compare_func : Callable[[IamDataFrame, IamDataFrame], MeasureType]
@@ -217,6 +212,13 @@ class IamDataFrameTargetVetter(
         status_mapping : Callable[[MeasureType], StatusType]
             A function that takes the output of `compare_func` as input and
             returns a status value.
+        filter : Mapping[str, tp.Any] | Callable[[IamDataFrame], IamDataFrame],
+                Optional
+            A filter to apply to the data before checking it against the target.
+            Can be a callable that takes an `IamDataFrame` as input and returns
+            an `IamDataFrame` as output, or a dict of filters to pass to the
+            `IamDataFrame.filter` method. Optional, default is a filter that
+            returns the input `IamDataFrame` unchanged.
         """
         super().__init__(
             target_value=target,
@@ -352,9 +354,15 @@ class IamDataFrameTimeseriesComparisonSpec:
 ###END class IamDataFrameTimeseriesComparisonSpec
 
 
+ComparisonType = tp.TypeVar(
+    'ComparisonType',
+    bound=IamDataFrameTimeseriesComparisonSpec
+)
+
+
 class IamDataFrameTimeseriesVetter(
     IamDataFrameTargetVetter[IamDataFrame, StatusType],
-    tp.Generic[StatusType]
+    tp.Generic[ComparisonType, StatusType]
 ):
     """Base class for checking an `IamDataFrame` against a timeseries target.
 
@@ -371,7 +379,7 @@ class IamDataFrameTimeseriesVetter(
     comparisons : list of IamDataFrameTimeseriesComparisonSpec
         The comparison operations to perform on the data and target timeseries.
     """
-    comparisons: list[IamDataFrameTimeseriesComparisonSpec]
+    comparisons: list[ComparisonType]
 
     @property
     def target(self) -> IamDataFrame:
@@ -381,20 +389,15 @@ class IamDataFrameTimeseriesVetter(
 
     def __init__(
             self,
-            filter: Mapping[str, tp.Any] \
-                | Callable[[IamDataFrame], IamDataFrame],
             target: IamDataFrame,
-            comparisons: Sequence[IamDataFrameTimeseriesComparisonSpec],
-            status_mapping: Callable[[IamDataFrame], StatusType]
+            comparisons: Sequence[ComparisonType],
+            status_mapping: Callable[[IamDataFrame], StatusType],
+            filter: Mapping[str, tp.Any] \
+                | Callable[[IamDataFrame], IamDataFrame] = lambda _idf: _idf,
     ):
         """
         Parameters
         ----------
-        filter : Mapping[str, tp.Any] | Callable[[IamDataFrame], IamDataFrame]
-            A filter to apply to the data before checking it against the target.
-            Can be a callable that takes an `IamDataFrame` as input and returns
-            an `IamDataFrame` as output, or a dict of filters to pass to the
-            `IamDataFrame.filter` method.
         target : IamDataFrame
             The target `IamDataFrame` to check against.
         comparisons : Sequence[IamDataFrameTimeseriesComparisonSpec]
@@ -405,13 +408,20 @@ class IamDataFrameTimeseriesVetter(
         status_mapping : Callable[[IamDataFrame], StatusType]
             A function that takes the output `IamDataFrame` from the comparison
             functions as input and returns a status value.
+        filter : Mapping[str, tp.Any] | Callable[[IamDataFrame], IamDataFrame],
+                Optional
+            A filter to apply to the data before checking it against the target.
+            Can be a callable that takes an `IamDataFrame` as input and returns
+            an `IamDataFrame` as output, or a dict of filters to pass to the
+            `IamDataFrame.filter` method. Optional, default is a filter that
+            returns the input `IamDataFrame` unchanged.
         """
         super().__init__(
-            filter=filter,
             target=target,
             compare_func=self._do_comparisons,
             results_type=IamDataFrameTimeseriesCheckResult,
-            status_mapping=status_mapping
+            status_mapping=status_mapping,
+            filter=filter,
         )
         self.comparisons = list(comparisons)
     ###END def IamDataFrameTimeseriesVetter.__init__
@@ -420,7 +430,7 @@ class IamDataFrameTimeseriesVetter(
     def _make_one_comparison(
             data: IamDataFrame,
             target: IamDataFrame,
-            comparison: IamDataFrameTimeseriesComparisonSpec
+            comparison: ComparisonType
     ) -> IamDataFrame:
         """Perform a single comparison operation on the data and target.
 
