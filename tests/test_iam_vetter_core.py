@@ -204,13 +204,24 @@ class TestIamDataFrameTimeseriesVetterDiffRatio(unittest.TestCase):
             construct_test_iamdf()
         self.diff_vetter = IamDataFrameTimeseriesVetter(
             target=self.target_df,
-            comparisons=[IamDataFrameVariableDiff()],
+            comparisons=[
+                IamDataFrameVariableDiff(
+                    match_dims=['scenario', 'region', 'variable', 'year']
+                )
+            ],
             status_mapping=lambda _idf: FinishedStatus.FINISHED
         )
     ###END def TestIamDataFrameTimeseriesVetterDiffRatio.setUp
 
     def test_diff_vetter(self) -> None:
         """Test IamDataFrameTimeseriesVetter with IamDataFrameVariableDiff."""
-        results: IamDataFrameTimeseriesCheckResult \
+        results: IamDataFrameTimeseriesCheckResult[FinishedStatus] \
             = self.diff_vetter.check(self.data_df)
+        self.assertEqual(results.status, FinishedStatus.FINISHED)
+        self.assertTrue(results.value.equals(self.diff_df))
+        self.assertTrue(results.target_value.equals(self.target_df))
+        self.assertTrue(results.measure.equals(self.diff_df))
+    ###END def TestIamDataFrameTimeseriesVetterDiffRatio.test_diff_vetter
+
+###END class TestIamDataFrameTimeseriesVetterDiffRatio
     

@@ -21,7 +21,19 @@ from iamcompact_vetting import pyam_helpers
 
 
 
-TIMEDIM: str = 'year'
+class Dim(str, enum.Enum):
+    """Enum for the dimensions of an `IamDataFrame`."""
+    MODEL = 'model'
+    SCENARIO = 'scenario'
+    REGION = 'region'
+    VARIABLE = 'variable'
+    UNIT = 'unit'
+    YEAR = 'year'
+###END class Dim
+
+
+
+TIMEDIM: Dim = Dim.YEAR
 """Name of the time dimension used."""
 
 # TypeVars
@@ -457,7 +469,8 @@ class IamDataFrameTimeseriesVetter(
             The result of the comparison.
         """
         broadcast_dims: list[str] = [_dim for _dim in data.dimensions
-                                     if _dim not in comparison.match_dims]
+                                     if _dim not in comparison.match_dims
+                                     and _dim != Dim.UNIT]
         target_broadcast_dim_values: dict[str, tp.Any] = {
             _dim: getattr(target, _dim) for _dim in broadcast_dims
         }
@@ -695,6 +708,7 @@ class IamDataFrameVariableDiff(IamDataFrameTimeseriesVariableComparison):
 
     def __init__(
         self,
+        match_dims: Sequence[str] = ('variable', 'region'),
         logger: tp.Optional[logging.Logger] = None,
         log_variable_mismatches: bool = True,
         use_abs_diff: bool = False
@@ -721,7 +735,7 @@ class IamDataFrameVariableDiff(IamDataFrameTimeseriesVariableComparison):
                                                    use_abs_diff=True)
         super().__init__(
             compare_func=self._compare_func,
-            match_dims=('variable', 'region'),
+            match_dims=match_dims,
             dim_suffix={'variable': '|Absolute Difference'},
             logger=logger,
             log_variable_mismatches=log_variable_mismatches
