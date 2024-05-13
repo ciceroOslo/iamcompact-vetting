@@ -635,9 +635,12 @@ class IamDataFrameTimeseriesVariableComparison(
         match_dims: Sequence[str] = ('variable', 'region'),
         dim_prefix: Mapping[str, str] = dataclasses.field(default_factory=dict),
         dim_suffix: Mapping[str, str] = dataclasses.field(default_factory=dict),
+        log_variable_mismatches: bool = True,
         logger: tp.Optional[logging.Logger] = None
     ):
         self.logger: logging.Logger|None = logger
+        if log_variable_mismatches:
+            compare_func = self.log_variable_mismatches(compare_func)
         self._external_compare_func: \
             IamDataFrameTimeseriesComparisonSpec.CompareFunc = compare_func
         super().__init__(
@@ -696,13 +699,12 @@ class IamDataFrameVariableDiff(IamDataFrameTimeseriesVariableComparison):
         if use_abs_diff:
             self._compare_func = functools.partial(self._compare_func,
                                                    use_abs_diff=True)
-        if log_variable_mismatches:
-            self.compare_func = self.log_variable_mismatches(self._compare_func)
         super().__init__(
             compare_func=self._compare_func,
             match_dims=('variable', 'region'),
             dim_suffix={'variable': '|Absolute Difference'},
-            logger=logger
+            logger=logger,
+            log_variable_mismatches=log_variable_mismatches
         )
     ###END def IamDataFrameVariableDiff.__init__
 
