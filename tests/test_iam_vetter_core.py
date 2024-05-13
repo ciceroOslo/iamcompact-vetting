@@ -11,8 +11,14 @@ from pyam import IamDataFrame
 import pyam
 import numpy as np
 
-from iamcompact_vetting.iam.iam_vetter_core import IamDataFrameTimeseriesVetter
 from iamcompact_vetting.pdhelpers import replace_level_values
+from iamcompact_vetting.iam.iam_vetter_core import (
+    IamDataFrameTimeseriesVetter,
+    IamDataFrameVariableDiff,
+    # IamDataFrameVariableRatio,
+    IamDataFrameTimeseriesCheckResult
+)
+from iamcompact_vetting.vetter_base import FinishedStatus
 
 
 TV = tp.TypeVar('TV')
@@ -169,3 +175,42 @@ def construct_test_iamdf() -> tuple[
         notnone(IamDataFrame(diff_series)),
         notnone(IamDataFrame(ratio_series))
     )
+###END def construct_test_iamdf
+
+
+class TestIamDataFrameTimeseriesVetterDiffRatio(unittest.TestCase):
+    """Tests for the IamDataFrameTimeseriesVetter class.
+    
+    These test use the `iam_vetter_core.IamDataFrameVariableDiff` and
+    `iam_vetter_core.IamDataFrameVariableRatio` classes to compare values, and
+    thereby test both the `IamDataFrameTimeseriesVetter` class and the
+    `IamDataFrameTimeseriesVariableComparison` class.
+    """
+
+    data_df: IamDataFrame
+    target_df: IamDataFrame
+    diff_df: IamDataFrame
+    ratio_df: IamDataFrame
+    diff_vetter: IamDataFrameTimeseriesVetter[
+        IamDataFrameVariableDiff, # | IamDataFrameVariableRatio
+        FinishedStatus
+    ]
+    diff_comparison: IamDataFrameVariableDiff
+    # ratio_comparison: IamDataFrameVariableRatio
+    
+    def setUp(self) -> None:
+        """Set up the test data for the IamDataFrameTimeseriesVetter tests."""
+        self.data_df, self.target_df, self.diff_df, self.ratio_df = \
+            construct_test_iamdf()
+        self.diff_vetter = IamDataFrameTimeseriesVetter(
+            target=self.target_df,
+            comparisons=[IamDataFrameVariableDiff()],
+            status_mapping=lambda _idf: FinishedStatus.FINISHED
+        )
+    ###END def TestIamDataFrameTimeseriesVetterDiffRatio.setUp
+
+    def test_diff_vetter(self) -> None:
+        """Test IamDataFrameTimeseriesVetter with IamDataFrameVariableDiff."""
+        results: IamDataFrameTimeseriesCheckResult \
+            = self.diff_vetter.check(self.data_df)
+    
