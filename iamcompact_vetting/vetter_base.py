@@ -26,11 +26,22 @@ from collections.abc import Callable
 StatusType = tp.TypeVar('StatusType', bound=enum.Enum)
 """TypeVar for the status of a vetting check (should be an enum)."""
 
-class PassFail(str, enum.Enum):
+class PassFailStatus(str, enum.Enum):
     """Enum for the status of a vetting check."""
-    PASS = enum.auto()
-    FAIL = enum.auto()
+    PASS = 'pass'
+    FAIL = 'fail'
 ###END enum class PassFail
+
+
+class FinishedStatus(str, enum.Enum):
+    """Status showing that a vetting check is finished, with unspecified result.
+
+    This status can be used as a dummy status for cases where one is only
+    interested in the numerical results of a check, and don't need to assign
+    any specific status.
+    """
+    FINISHED = 'finished'
+###END enum class FinishedStatus
 
 
 class VettingResultsBase(tp.Generic[StatusType], abc.ABC):
@@ -61,14 +72,14 @@ class VettingResultsBase(tp.Generic[StatusType], abc.ABC):
 ###END class VettingResultsBase
 
 
-class PassFailResults(VettingResultsBase[PassFail], abc.ABC):
+class PassFailResults(VettingResultsBase[PassFailStatus], abc.ABC):
     """Base class for the results of a vetting check that uses the `PassFail`
     enum for the status.
 
     Subclasses should implement the `__str__` method, which should return a
     string representation of the results.
     """
-    status_type = PassFail
+    status_type = PassFailStatus
 ###END class PassFailResults
 
 
