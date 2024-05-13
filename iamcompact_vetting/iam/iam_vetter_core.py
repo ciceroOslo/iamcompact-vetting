@@ -9,6 +9,7 @@ import functools
 
 from pyam import IamDataFrame
 import pyam
+import pandas as pd
 
 from iamcompact_vetting.vetter_base import (
     Vetter,
@@ -286,6 +287,13 @@ class IamDataFrameTimeseriesComparisonSpec:
                 The data to be compared.
             - target : IamDataFrame
                 The target timeseries.
+            - meta : Optional[pd.DataFrame]
+                A metadata DataFrame to be included in the result. If None, the
+                default behavior is up to the implementation of the comparison,
+                but by default the metadata should be consistent with those of
+                the `data` IamDataFrame. It is mandatory for comparison
+                functions to handle metadata appropriately.
+                Optional, by default None.
             - logger : Optional[logging.Logger]
                 A logger to use for logging messages. Optional, by default None.
                 If None, no log messages should be written (although the
@@ -327,6 +335,7 @@ class IamDataFrameTimeseriesComparisonSpec:
                 self,
                 data: IamDataFrame,
                 target: IamDataFrame,
+                meta: tp.Optional[pd.DataFrame] = None,
                 logger: tp.Optional[logging.Logger] = None
         ) -> IamDataFrame:
             ...
@@ -557,6 +566,7 @@ class IamDataFrameTimeseriesVariableComparison(
         def _decorated(
                 data: IamDataFrame,
                 target: IamDataFrame,
+                meta: tp.Optional[pd.DataFrame] = None,
                 logger: tp.Optional[logging.Logger] = None
         ) -> IamDataFrame:
             data_vars: set[str] = set(data.variable)
@@ -572,7 +582,12 @@ class IamDataFrameTimeseriesVariableComparison(
                     logger.info(
                         f"Variables present in target but not in data: {missing_in_data}"
                     )
-            return compare_func(data, target, logger)
+            return compare_func(
+                data=data,
+                target=target,
+                meta=meta,
+                logger=logger
+            )
         return _decorated
     ###END def IamDataFrameTimeseriesVariableComparison.log_variable_mismatches
 
@@ -580,6 +595,7 @@ class IamDataFrameTimeseriesVariableComparison(
             self,
             data: IamDataFrame,
             target: IamDataFrame,
+            meta: tp.Optional[pd.DataFrame] = None,
             logger: tp.Optional[logging.Logger] = None
     ) -> IamDataFrame:
         """Call the comparison function with the data and target.
@@ -605,7 +621,12 @@ class IamDataFrameTimeseriesVariableComparison(
         )
         if logger is None:
             logger = self.logger
-        return self._external_compare_func(data, target, logger)
+        return self._external_compare_func(
+            data=data,
+            target=target,
+            meta=meta,
+            logger=logger
+        )
     ###END def IamDataFrameTimeseriesVariableComparison._call_compare_func
 
     def __init__(
@@ -628,3 +649,99 @@ class IamDataFrameTimeseriesVariableComparison(
     ###END def IamDataFrameTimeseriesVariableComparison.__init__
 
 ###END class IamDataFrameTimeseriesVariableComparison
+
+
+class IamDataFrameVariableDiff(IamDataFrameTimeseriesVariableComparison):
+    """Comparison specification for comparing two IamDataFrame instances as
+    timeseries.
+
+    This class is a subclass of `IamDataFrameTimeseriesVariableComparison` that
+    provides a comparison function that calculates the difference between the
+    values in the data and target timeseries for each variable.
+
+    The comparison function will return an `IamDataFrame` with the same
+    dimensions as the data and target, but with the values in the time dimension
+    replaced by the differences between the values in the data and target
+    timeseries.
+
+    The comparison function will also set the units of the result to the units
+    of the data timeseries, and will add a suffix to the variable names of the
+    result to indicate that the values are the absolute differences between the
+    data and target timeseries.
+    """
+
+    def __init__(
+        self,
+        logger: tp.Optional[logging.Logger] = None,
+        log_variable_mismatches: bool = True,
+        use_abs_diff: bool = False
+    ):
+        """
+        Parameters
+        ----------
+        logger : Optional[logging.Logger], optional
+            A logger to use for logging messages. Optional, by default None.
+        log_variable_mismatches : bool, optional
+            Whether to log a message at level `logging.INFO` that lists
+            variables present in the data but not in the target, and at level
+            `logging.WARNING` that lists variables present in the target but not
+            in the data. Optional, by default True.
+        use_abs_diff : bool, optional
+            Whether to calculate the absolute difference between the data and
+            target timeseries. If `True`, the absolute difference will be
+            calculated, otherwise the signed difference will be calculated
+            (positive where the data is greater than the target. Optional, by
+            default False.
+        """
+        if use_abs_diff:
+            self._compare_func = functools.partial(self._compare_func,
+                                                   use_abs_diff=True)
+        if log_variable_mismatches:
+            self.compare_func = self.log_variable_mismatches(self._compare_func)
+        super().__init__(
+            compare_func=self._compare_func,
+            match_dims=('variable', 'region'),
+            dim_suffix={'variable': '|Absolute Difference'},
+            logger=logger
+        )
+    ###END def IamDataFrameVariableDiff.__init__
+
+    @staticmethod
+    def _compare_func(
+            data: IamDataFrame,
+            target: IamDataFrame,
+            meta: tp.Optional[pd.DataFrame] = None,
+            logger: tp.Optional[logging.Logger] = None,
+            use_abs_diff: bool = False
+    ) -> IamDataFrame:
+        """Calculate the absolute difference between the data and target timeseries.
+
+        Parameters
+        ----------
+        data : IamDataFrame
+            The data to be compared.
+        target : IamDataFrame
+            The target timeseries.
+        meta: Optional[pd.DataFrame], optional
+            A metadata DataFrame to be included in the result. If None,
+            `data.meta` will be used as the metadata for the result. Optional,
+            by default None. If you want the result to have no metadata, pass an
+            empty DataFrame.
+        logger : Optional[logging.Logger], optional
+            A logger to use for logging messages. Optional, by default None.
+
+        Returns
+        -------
+        IamDataFrame
+            The result of the comparison.
+        """
+        result_data: pd.Series = pyam_helpers.as_pandas_series(data) \
+            - pyam_helpers.as_pandas_series(target)
+        if use_abs_diff:
+            result_data = result_data.abs()
+        if meta is None:
+            meta = data.meta
+        return pyam.IamDataFrame(result_data, meta=meta)
+    ###END def IamDataFrameVariableDiff._compare_func
+
+###END class IamDataFrameVariableDiff
