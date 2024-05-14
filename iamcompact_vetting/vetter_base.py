@@ -165,6 +165,16 @@ class TargetCheckResult(
         super().__init__(status=status)
     ###END def TargetCheckResultsBase.__init__
 
+    def __str__(self):
+        return f'{self.__module__}.{self.__class__.__name__} instance with ' \
+            f'status {str(self.status)}.\nResult:\n{str(self.measure)}'
+    ###END def TargetCheckResultsBase.__str__
+
+    def __repr__(self):
+        return f'{self.__module__}.{self.__class__.__name__} instance with ' \
+            f'status {repr(self.status)}.\nResult:\n{repr(self.measure)}'
+    ###END def TargetCheckResultsBase.__repr__
+
 ###END class TargetCheckResultsBase
 
 
