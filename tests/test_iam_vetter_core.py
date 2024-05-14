@@ -191,10 +191,6 @@ class TestIamDataFrameTimeseriesVetterDiffRatio(unittest.TestCase):
     target_df: IamDataFrame
     diff_df: IamDataFrame
     ratio_df: IamDataFrame
-    diff_vetter: IamDataFrameTimeseriesVetter[
-        IamDataFrameVariableDiff, # | IamDataFrameVariableRatio
-        FinishedStatus
-    ]
     diff_comparison: IamDataFrameVariableDiff
     # ratio_comparison: IamDataFrameVariableRatio
     
@@ -202,25 +198,51 @@ class TestIamDataFrameTimeseriesVetterDiffRatio(unittest.TestCase):
         """Set up the test data for the IamDataFrameTimeseriesVetter tests."""
         self.data_df, self.target_df, self.diff_df, self.ratio_df = \
             construct_test_iamdf()
-        self.diff_vetter = IamDataFrameTimeseriesVetter(
+    ###END def TestIamDataFrameTimeseriesVetterDiffRatio.setUp
+
+    def test_diff_vetter_no_var_suffix(self) -> None:
+        """Test IamDataFrameTimeseriesVetter with IamDataFrameVariableDiff."""
+        diff_vetter_no_var_suffix = IamDataFrameTimeseriesVetter(
             target=self.target_df,
             comparisons=[
                 IamDataFrameVariableDiff(
-                    match_dims=['scenario', 'region', 'variable', 'year']
+                    match_dims=['scenario', 'region', 'variable', 'year'],
+                    var_suffix='',
+                    var_prefix=''
                 )
             ],
             status_mapping=lambda _idf: FinishedStatus.FINISHED
         )
-    ###END def TestIamDataFrameTimeseriesVetterDiffRatio.setUp
-
-    def test_diff_vetter(self) -> None:
-        """Test IamDataFrameTimeseriesVetter with IamDataFrameVariableDiff."""
         results: IamDataFrameTimeseriesCheckResult[FinishedStatus] \
-            = self.diff_vetter.check(self.data_df)
+            = diff_vetter_no_var_suffix.check(self.data_df)
         self.assertEqual(results.status, FinishedStatus.FINISHED)
-        self.assertTrue(results.value.equals(self.diff_df))
+        self.assertTrue(results.value.equals(self.data_df))
         self.assertTrue(results.target_value.equals(self.target_df))
         self.assertTrue(results.measure.equals(self.diff_df))
+    ###END def TestIamDataFrameTimeseriesVetterDiffRatio.test_diff_vetter
+
+    def test_diff_vetter_default_var_suffix(self) -> None:
+        """Test IamDataFrameTimeseriesVetter with IamDataFrameVariableDiff."""
+        diff_vetter_no_var_suffix = IamDataFrameTimeseriesVetter(
+            target=self.target_df,
+            comparisons=[
+                IamDataFrameVariableDiff(
+                    match_dims=['scenario', 'region', 'variable', 'year'],
+                )
+            ],
+            status_mapping=lambda _idf: FinishedStatus.FINISHED
+        )
+        results: IamDataFrameTimeseriesCheckResult[FinishedStatus] \
+            = diff_vetter_no_var_suffix.check(self.data_df)
+        diff_var_rename_dict: dict[str, str] = {
+            _varname: _varname + '|Difference' for _varname in self.diff_df.variable
+        }
+        self.assertEqual(results.status, FinishedStatus.FINISHED)
+        self.assertTrue(results.value.equals(self.data_df))
+        self.assertTrue(results.target_value.equals(self.target_df))
+        self.assertTrue(results.measure.equals(
+            self.diff_df.rename(variable=diff_var_rename_dict)
+        ))
     ###END def TestIamDataFrameTimeseriesVetterDiffRatio.test_diff_vetter
 
 ###END class TestIamDataFrameTimeseriesVetterDiffRatio

@@ -716,7 +716,9 @@ class IamDataFrameVariableDiff(IamDataFrameTimeseriesVariableComparison):
         match_dims: Sequence[str] = ('variable', 'region'),
         logger: tp.Optional[logging.Logger] = None,
         log_variable_mismatches: bool = True,
-        use_abs_diff: bool = False
+        use_abs_diff: bool = False,
+        var_suffix: tp.Optional[str] = None,
+        var_prefix: str = ''
     ):
         """
         Parameters
@@ -738,10 +740,14 @@ class IamDataFrameVariableDiff(IamDataFrameTimeseriesVariableComparison):
         if use_abs_diff:
             self._compare_func = functools.partial(self._compare_func,
                                                    use_abs_diff=True)
+        if var_suffix is None:
+            var_suffix = '|Absolute Difference' if use_abs_diff \
+                else '|Difference'
         super().__init__(
             compare_func=self._compare_func,
             match_dims=match_dims,
-            dim_suffix={'variable': '|Absolute Difference'},
+            dim_suffix={'variable': var_suffix},
+            dim_prefix={'variable': var_prefix},
             logger=logger,
             log_variable_mismatches=log_variable_mismatches
         )
