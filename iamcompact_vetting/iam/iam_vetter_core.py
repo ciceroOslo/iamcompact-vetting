@@ -666,8 +666,8 @@ class IamDataFrameTimeseriesVariableComparison(
         self,
         compare_func: IamDataFrameTimeseriesComparisonSpec.CompareFunc,
         match_dims: Sequence[str] = ('variable', 'region'),
-        dim_prefix: Mapping[str, str] = dataclasses.field(default_factory=dict),
-        dim_suffix: Mapping[str, str] = dataclasses.field(default_factory=dict),
+        dim_prefix: tp.Optional[Mapping[str, str]] = None,
+        dim_suffix: tp.Optional[Mapping[str, str]] = None,
         log_variable_mismatches: bool = True,
         logger: tp.Optional[logging.Logger] = None
     ):
@@ -676,6 +676,10 @@ class IamDataFrameTimeseriesVariableComparison(
             compare_func = self.log_variable_mismatches(compare_func)
         self._external_compare_func: \
             IamDataFrameTimeseriesComparisonSpec.CompareFunc = compare_func
+        if dim_prefix is None:
+            dim_prefix = {}
+        if dim_suffix is None:
+            dim_suffix = {}
         super().__init__(
             compare_func=self._call_compare_func,
             match_dims=tuple(match_dims),
@@ -687,6 +691,7 @@ class IamDataFrameTimeseriesVariableComparison(
 ###END class IamDataFrameTimeseriesVariableComparison
 
 
+@dataclasses.dataclass(init=False)
 class IamDataFrameVariableDiff(IamDataFrameTimeseriesVariableComparison):
     """Comparison specification for comparing two IamDataFrame instances as
     timeseries.
