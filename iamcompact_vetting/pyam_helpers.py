@@ -29,7 +29,7 @@ def make_consistent_units(
         df: pyam.IamDataFrame,
         match_df: pyam.IamDataFrame,
         unit_col: str = 'unit',
-        match_dims: tp.Sequence[str] = ('variable',),
+        match_dims: tp.Sequence[str] = ('model', 'scenario', 'region'),
         keep_meta: bool = True
 ) -> pyam.IamDataFrame:
     """Make the units of an IamDataFrame consistent with another IamDataFrame.
@@ -53,9 +53,14 @@ def make_consistent_units(
         Whether to keep the metadata of `df` when converting units. Optional,
         defaults to True.
     match_dims : Sequence[str], optional
-        Dimensions to match the units on. Optional, defaults to ('variable',).
-        It is assumed that the units are the same for all other dimensions in
-        `match_df`.
+        Only used in the case that `match_df` has more than one unit for a
+        single variable. In that case, this parameter specifies the dimensions
+        that `df` and `match_df` will be matched on to select which unit to
+        convert to. `match_df` must have only one unit per variable for a given
+        combination of values for the dimensions specified in this parameter, or
+        a `ValueError` will be raised. `variable` is always implied. Optional,
+        defaults to all dimensions except the time dimension (`year`) and the
+        `unit` dimension itself, i.e., `('model', 'scenario', 'region')`.
 
     Returns
     -------
@@ -90,10 +95,47 @@ def make_consistent_units(
                     )
                 )
             else:
-                raise NotImplementedError(
-                    'Conversion using a target dataframe with more than one '
-                    'unit for a single variable is not yet implemented.'
+                _source_unit_converted_dfs: list[pyam.IamDataFrame] = []
+                for _target_unit in target_unit:
+                    target_unit_df: pyam.IamDataFrame = notnone(
+                        match_df.filter(variable=_var, unit=_target_unit)
+                    )
+                    _df_filter: dict[str, str] = {
+                        _dim: getattr(target_unit_df, _dim)
+                        for _dim in match_dims
+                    }
+                    _source_df: pyam.IamDataFrame = notnone(
+                        df.filter(
+                            variable=_var,
+                            unit=_source_unit,
+                            keep=True,
+                            inplace=False,
+                            **_df_filter
+                        )
+                    )
+                    _source_unit_converted_dfs.append(
+                        notnone(
+                            _source_df.convert_unit(_source_unit,
+                                                    to=_target_unit)
+                        )
+                    )
+                # Need to check that the result has the same length as the
+                # source df for the variable and unit
+                _source_unit_converted_df_joined = pyam.concat(
+                    _source_unit_converted_dfs
                 )
+                if len(_source_unit_converted_df_joined) != \
+                        len(notnone(df.filter(variable=_var, unit=_source_unit))):
+                    raise ValueError(
+                        f'The lenght of the converted IamDataFrame for '
+                        f'variable {_var} and unit {_source_unit} does not '
+                        f'match the length of the source IamDataFrame for the '
+                        f'same variable and unit. Probably this is because the '
+                        f'unit in the target IamDataFrame is not unique for '
+                        f'the combination of dimensions given in the '
+                        f'match_dims parameter ({match_dims}).'
+                    )
+                converted_dfs.extend(_source_unit_converted_dfs)
     converted_data_series: pd.Series = pd.concat(
         [matching_df._data, *[_df._data for _df in converted_dfs]]
     )
