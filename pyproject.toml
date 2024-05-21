@@ -10,6 +10,7 @@ requires-python = ">= 3.10"
 dependencies = [
     "pyam-iamc>=2.1",
     "pathways-ensemble-analysis @ file:///home/janko/src/repos/github_forks/pathways-ensemble-analysis",
+    "pandas-indexing>=0.5.1"  # Dependency required by p-e-a (but not listed among its requirements)
 ]
 
 [build-system]
