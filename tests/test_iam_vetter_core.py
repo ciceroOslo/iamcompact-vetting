@@ -123,7 +123,7 @@ def construct_test_iamdf() -> tuple[
         other=data_series * 1000.0 / 3.6
     )
 
-    diff_series: pd.Series = pd.concat(
+    diff_series: pd.Series = tp.cast(pd.Series, pd.concat(
         [
             data_series.xs('ModelA', level='model', drop_level=False) \
                 - replace_level_values(
@@ -138,7 +138,7 @@ def construct_test_iamdf() -> tuple[
                     level_name='model'
                 )
         ]
-    )
+    ))
     ratio_series: pd.Series = pd.concat(
         [
             data_series.xs('ModelA', level='model', drop_level=False) \
