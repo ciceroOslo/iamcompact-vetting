@@ -9,6 +9,7 @@ readme = "README.md"
 requires-python = ">= 3.10"
 dependencies = [
     "pyam-iamc>=2.1",
+    "pathways-ensemble-analysis @ file:///home/janko/src/repos/github_forks/pathways-ensemble-analysis",
 ]
 
 [build-system]

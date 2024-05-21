@@ -118,6 +118,8 @@ pandas==2.2.2
     # via seaborn
 pandera==0.19.3
     # via ixmp4
+pathways-ensemble-analysis @ file:///home/janko/src/repos/github_forks/pathways-ensemble-analysis
+    # via iamcompact-vetting
 pillow==10.3.0
     # via matplotlib
 pint==0.23

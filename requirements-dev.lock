@@ -290,6 +290,8 @@ parso==0.8.4
 pathspec==0.12.1
     # via dvc
     # via scmrepo
+pathways-ensemble-analysis @ file:///home/janko/src/repos/github_forks/pathways-ensemble-analysis
+    # via iamcompact-vetting
 pexpect==4.9.0
     # via ipython
 pillow==10.3.0
