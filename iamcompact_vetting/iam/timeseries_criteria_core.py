@@ -19,7 +19,7 @@ from .dims import IamDim
 
 
 
-class TimeseriesCriterion(Criterion):
+class TimeseriesRefCriterion(Criterion):
     """Base class for criteria that compare IAM output timeseries.
 
     This class is a subclass of `pea.Criterion` that is designed to compare
@@ -30,6 +30,12 @@ class TimeseriesCriterion(Criterion):
     Series with a value for each year for a single model/scenario pair, or
     a Series with an additional index level for the year and values for each
     year for each model/scenario pair.
+
+    Init parameters
+    ---------------
+    criterion_name : str
+        The name of the criterion.
+    reference : pyam.IamDataFrame
     """
 
 
