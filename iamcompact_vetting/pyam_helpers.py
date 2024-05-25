@@ -12,6 +12,7 @@ make_consistent_units(df, match_df, unit_col='unit', match_dims=('variable',)) \
     have the same regions, models, or scenarios, unless specified.
 """
 import typing as tp
+from collections.abc import Sequence
 
 import pyam
 import pandas as pd
@@ -29,7 +30,7 @@ def make_consistent_units(
         df: pyam.IamDataFrame,
         match_df: pyam.IamDataFrame,
         unit_col: str = 'unit',
-        match_dims: tp.Sequence[str] = ('model', 'scenario', 'region'),
+        match_dims: Sequence[str] = ('model', 'scenario', 'region'),
         keep_meta: bool = True
 ) -> pyam.IamDataFrame:
     """Make the units of an IamDataFrame consistent with another IamDataFrame.
@@ -184,3 +185,55 @@ def as_pandas_series(
         data_ser.name = name
     return data_ser
 ###END def as_pandas_series
+
+
+class MultipleCoordinateValuesError(ValueError):
+    """Raised if an IamDataFrame has mulltiple coordinate values for given
+    dimensions when only a single value is expected."""
+    ...
+###END class MultipleCoordinateValuesError
+
+
+def broadcast_dims(
+        df: pyam.IamDataFrame,
+        target: pyam.IamDataFrame,
+        dims: Sequence[str]
+) -> pyam.IamDataFrame:
+    """Make an IamDataFrame match coordinates of a target for given dimensions.
+
+    The function takes an IamDataFrame with a single coordinate value for a list
+    of dimensions, and renames the coordinates for those dimensions to match a
+    target IamDataFrame, copying the data for each combination of the other
+    dimensions.
+
+    Note that the original IamDataFrame must have only a single coordinate value
+    for each of the dimensions to match, or a `MultipleCoordinateValuesError`
+    will be raised.
+
+    Parameters
+    ----------
+    df : pyam.IamDataFrame
+        IamDataFrame to make match the target.
+    target : pyam.IamDataFrame
+        IamDataFrame to match the coordinates to.
+    dims : sequence of str
+        Dimensions to match the coordinates for.
+    """
+    for _dim in dims:
+        if len(getattr(df, _dim)) > 1:
+            raise MultipleCoordinateValuesError(
+                f'The IamDataFrame has multiple coordinate values for the '
+                f'dimension {_dim}. Can only broadcast on dimensions where '
+                f'`df` only has a single coordinate value.'
+            )
+    df_broadcast_dim_values: dict[str, tp.Any] = {
+        _dim: getattr(df, _dim)[0] for _dim in dims
+    }
+    df_broadcasted: pyam.IamDataFrame = pyam.concat(
+        [
+            df.rename({_dim: {df_broadcast_dim_values[_dim]: _targetval}})
+            for _dim in dims for _targetval in getattr(target, _dim)
+        ]
+    )
+    return df_broadcasted
+###END def broadcast_dims
