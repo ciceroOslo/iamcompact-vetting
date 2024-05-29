@@ -9,6 +9,7 @@ import pandas as pd
 from iamcompact_vetting.pyam_helpers import (
     make_consistent_units,
     as_pandas_series,
+    broadcast_dims
 )
 
 
@@ -151,3 +152,95 @@ class TestAsPandasSeries(unittest.TestCase):
     ###END def TestAsPandasSeries.test_empty_IamDataFrame
 
 ###END class TestAsPandasSeries
+
+
+class TestBroadcastDims(unittest.TestCase):
+
+    # Successfully broadcast dimensions when there is one dimension in dims, and
+    # only a single coordinate value for that dimension in `df`
+    def test_successful_broadcast_single_dim(self):
+        df_data = pd.DataFrame([
+            ['model_a', 'scen_c', 'region_a', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_a', 'region_a', 'variable_a', 'unit_a', 2005, 2.5]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+        target_data = pd.DataFrame([
+            ['model_a', 'scen_a', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_a', 'region_c', 'variable_a', 'unit_a', 2005, 3.0]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+    
+        df = pyam.IamDataFrame(df_data)
+        target = pyam.IamDataFrame(target_data)
+    
+        result = broadcast_dims(df, target, ['region'])
+    
+        expected_data = pd.DataFrame([
+            ['model_a', 'scen_c', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_c', 'region_c', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_a', 'region_b', 'variable_a', 'unit_a', 2005, 2.5],
+            ['model_c', 'scen_a', 'region_c', 'variable_a', 'unit_a', 2005, 2.5]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+        expected = pyam.IamDataFrame(expected_data)
+    
+        self.assertTrue(result.equals(expected))
+    ###END def TestBroadcastDims.test_successful_broadcast
+
+    # Successfully broadcast dimensions when there are multiple dimensions in dims,
+    # and only a single coordinate value for each of those dimensions in `df`
+    def test_successful_broadcast_multiple_dims(self):
+        df_data = pd.DataFrame([
+            ['model_a', 'scen_a', 'region_a', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_a', 'region_a', 'variable_a', 'unit_a', 2005, 2.5]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+        target_data = pd.DataFrame([
+            ['model_a', 'scen_b', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_b', 'region_c', 'variable_a', 'unit_a', 2005, 3.0],
+            ['model_a', 'scen_c', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_c', 'region_c', 'variable_a', 'unit_a', 2005, 3.0]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+    
+        df = pyam.IamDataFrame(df_data)
+        target = pyam.IamDataFrame(target_data)
+    
+        result = broadcast_dims(df, target, ['region', 'scenario'])
+    
+        expected_data = pd.DataFrame([
+            ['model_a', 'scen_b', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_b', 'region_c', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_b', 'region_b', 'variable_a', 'unit_a', 2005, 2.5],
+            ['model_c', 'scen_b', 'region_c', 'variable_a', 'unit_a', 2005, 2.5],
+            ['model_a', 'scen_c', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_c', 'region_c', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_c', 'region_b', 'variable_a', 'unit_a', 2005, 2.5],
+            ['model_c', 'scen_c', 'region_c', 'variable_a', 'unit_a', 2005, 2.5]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+        expected = pyam.IamDataFrame(expected_data)
+    
+        self.assertTrue(result.equals(expected))
+    ###END def TestBroadcastDims.test_successful_broadcast
+
+    # Fail when `df` has multiple coordinate values for a dimension in dims
+    def test_fail_multiple_values(self):
+        df_data = pd.DataFrame([
+            ['model_a', 'scen_a', 'region_a', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_b', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_a', 'region_a', 'variable_a', 'unit_a', 2005, 2.5]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+        target_data = pd.DataFrame([
+            ['model_a', 'scen_a', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_a', 'region_c', 'variable_a', 'unit_a', 2005, 3.0]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+    
+        df = pyam.IamDataFrame(df_data)
+        target = pyam.IamDataFrame(target_data)
+    
+        with self.assertRaises(ValueError):
+            broadcast_dims(df, target, ['region'])
+        with self.assertRaises(ValueError):
+            broadcast_dims(df, target, ['scenario'])
+        with self.assertRaises(ValueError):
+            broadcast_dims(df, target, ['model'])
+        with self.assertRaises(ValueError):
+            broadcast_dims(df, target, ['model', 'variable'])
+
+
+###END class TestBroadcastDims

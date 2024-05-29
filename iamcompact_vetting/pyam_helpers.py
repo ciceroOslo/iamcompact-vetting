@@ -210,6 +210,19 @@ def broadcast_dims(
     for each of the dimensions to match, or a `MultipleCoordinateValuesError`
     will be raised.
 
+    Note the following for coordinate values in dimensions that are not
+    broadcasted (not in `dims`), the returned IamDataFrame will have the same
+    coordinate values as the original IamDataFrame `df`. This means that:
+    - Any coordinate values in `df` that are not in `target` will be kept as
+      they are, not dropped.
+    - Any coordinate values in `target` that are not in `df` will not be added
+      to the returned IamDataFrame.
+    This is different from how, e.g., the `reindex` method of a pandas Series or
+    DataFrame works, where the default behavior is to drop coordinate values not
+    present in the target index, and add coordinate values in the target index
+    that are not present in the original index, filling the values with NaN or
+    another filler value.
+
     Parameters
     ----------
     df : pyam.IamDataFrame
@@ -226,14 +239,25 @@ def broadcast_dims(
                 f'dimension {_dim}. Can only broadcast on dimensions where '
                 f'`df` only has a single coordinate value.'
             )
-    df_broadcast_dim_values: dict[str, tp.Any] = {
+    broadcast_dim_original_values: dict[str, tp.Any] = {
         _dim: getattr(df, _dim)[0] for _dim in dims
     }
-    df_broadcasted: pyam.IamDataFrame = pyam.concat(
-        [
-            df.rename({_dim: {df_broadcast_dim_values[_dim]: _targetval}})
-            for _dim in dims for _targetval in getattr(target, _dim)
+    df_broadcasted: pyam.IamDataFrame = df.copy()
+    for _dim in dims:
+        df_broadcasted_new_components: list[pyam.IamDataFrame] = [
+            notnone(
+                df_broadcasted.rename(
+                    {_dim: {broadcast_dim_original_values[_dim]: _targetval}}
+                )
+            )
+            for _targetval in getattr(target, _dim)
         ]
-    )
+        df_broadcasted = pyam.concat(df_broadcasted_new_components)
+    # df_broadcasted: pyam.IamDataFrame = pyam.concat(
+    #     [
+    #         df.rename({_dim: {broadcast_dim_original_values[_dim]: _targetval}})
+    #         for _dim in dims for _targetval in getattr(target, _dim)
+    #     ]
+    # )
     return df_broadcasted
 ###END def broadcast_dims
