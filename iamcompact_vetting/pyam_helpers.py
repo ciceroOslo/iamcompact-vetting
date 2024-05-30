@@ -213,10 +213,10 @@ def broadcast_dims(
     Note the following for coordinate values in dimensions that are not
     broadcasted (not in `dims`), the returned IamDataFrame will have the same
     coordinate values as the original IamDataFrame `df`. This means that:
-    - Any coordinate values in `df` that are not in `target` will be kept as
-      they are, not dropped.
-    - Any coordinate values in `target` that are not in `df` will not be added
-      to the returned IamDataFrame.
+        - Any coordinate values in `df` that are not in `target` will be kept as
+          they are, not dropped.
+        - Any coordinate values in `target` that are not in `df` will not be
+          added to the returned IamDataFrame.
     This is different from how, e.g., the `reindex` method of a pandas Series or
     DataFrame works, where the default behavior is to drop coordinate values not
     present in the target index, and add coordinate values in the target index

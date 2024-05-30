@@ -15,6 +15,7 @@ import pandas as pd
 import pathways_ensemble_analysis as pea
 from pathways_ensemble_analysis.criteria.base import Criterion
 
+from iamcompact_vetting.pyam_helpers import broadcast_dims
 from .dims import IamDim
 
 
@@ -49,7 +50,7 @@ class TimeseriesRefCriterion(Criterion):
         objects, which can be significantly faster, by using the
         `pyam_series_comparison` decorator (in this module, see separate
         docstring). In most cases, you will probably also want to prefix that
-        with the `math_units` decorator (also in this module, see separate
+        with the `match_units` decorator (also in this module, see separate
         docstring) to ensure that units are consistent before comparing the
         Series, but this can be left out to improve performance if you are sure
         that the units are already consistent.
