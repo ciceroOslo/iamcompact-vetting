@@ -5,6 +5,7 @@ import unittest
 import unittest.mock
 
 import pandas as pd
+import numpy as np
 import pyam
 
 from iamcompact_vetting.iam.timeseries_criteria_core \
@@ -57,4 +58,118 @@ class TestPyamSeriesComparison(unittest.TestCase):
             mock_make_consistent_units.assert_called_once_with(df=iamdf1, match_df=iamdf2)
     ###END def TestPyamSeriesComparison.test_converts_units_when_match_units_is_true
 
+    # Gives correct result for two IamDataFrames with the same variables but
+    # different units for one of the variables, when being passed a simple
+    # subtraction function, and match_units is True
+    def test_correct_result_for_two_iamdfs_with_same_variables_diff_units_and_values(
+            self
+    ):
+        @pyam_series_comparison(match_units=True)
+        def custom_comparison(series1: pd.Series, series2: pd.Series) -> pd.Series:
+            return series1 - series2
+
+        iamdf1 = pyam.IamDataFrame(
+            pd.DataFrame(
+                {
+                    'model': ['model1']*6,
+                    'scenario': ['scenario1']*6,
+                    'region': ['World']*6,
+                    'variable': ['Primary Energy|Wind']*3 + ['Emissions|CO2']*3,
+                    'unit': ['TWh']*3 + ['Mt CO2/yr']*3,
+                    'year': [2020, 2025, 2030]*2,
+                    'value': [1000.0, 2000.0, 2500.0, 1100.0, 1500.0, 1700.0]
+                }
+            )
+        )
+        iamdf2 = pyam.IamDataFrame(
+            pd.DataFrame(
+                {
+                    'model': ['model1']*6,
+                    'scenario': ['scenario1']*6,
+                    'region': ['World']*6,
+                    'variable': ['Primary Energy|Wind']*3 + ['Emissions|CO2']*3,
+                    'unit': ['EJ']*3 + ['Mt CO2/yr']*3,
+                    'year': [2020, 2025, 2030]*2,
+                    'value': [4.0, 5.0, 6.0, 1300.0, 1400.0, 1450.0]
+                }
+            )
+        )
+
+        expected_result = pyam.IamDataFrame(
+            pd.DataFrame(
+                {
+                    'model': ['model1']*6,
+                    'scenario': ['scenario1']*6,
+                    'region': ['World']*6,
+                    'variable': ['Primary Energy|Wind']*3 + ['Emissions|CO2']*3,
+                    'unit': ['EJ']*3 + ['Mt CO2/yr']*3,
+                    'year': [2020, 2025, 2030]*2,
+                    'value': [1.0*3.6-4.0, 2.0*3.6-5.0, 2.5*3.6-6.0,
+                              1100.0-1300.0, 1500.0-1400.0, 1700.0-1450.0]
+                }
+            )
+        )
+
+        result = custom_comparison(iamdf1, iamdf2)
+
+        self.assertTrue(pyam.IamDataFrame(result).equals(expected_result))
+    ###END def TestPyamSeriesComparison.test_correct_result_for_two_iamdfs_with_same_variables_diff_units_and_values
+
+    # Gives correct result for two IamDataFrames with the same variables but
+    # different units for one of the variables, and misaligned years. We then
+    # expect the result to be as before for the matching years, and NaN for the
+    # non-matching years, when being passed a simple addition function, and
+    # match_units is True
+    def test_correct_result_for_two_iamdfs_with_same_variables_diff_units_and_values_misaligned_years(
+            self
+    ):
+        @pyam_series_comparison(match_units=True)
+        def custom_comparison(series1: pd.Series, series2: pd.Series) -> pd.Series:
+            return series1 - series2
+
+        iamdf1 = pyam.IamDataFrame(
+            pd.DataFrame(
+                {
+                    'model': ['model1']*6,
+                    'scenario': ['scenario1']*6,
+                    'region': ['World']*6,
+                    'variable': ['Primary Energy|Wind']*3 + ['Emissions|CO2']*3,
+                    'unit': ['TWh']*3 + ['Mt CO2/yr']*3,
+                    'year': [2025, 2030, 2035]*2,
+                    'value': [1000.0, 2000.0, 2500.0, 1100.0, 1500.0, 1700.0]
+                }
+            )
+        )
+        iamdf2 = pyam.IamDataFrame(
+            pd.DataFrame(
+                {
+                    'model': ['model1']*6,
+                    'scenario': ['scenario1']*6,
+                    'region': ['World']*6,
+                    'variable': ['Primary Energy|Wind']*3 + ['Emissions|CO2']*3,
+                    'unit': ['EJ']*3 + ['Mt CO2/yr']*3,
+                    'year': [2020, 2025, 2030]*2,
+                    'value': [4.0, 5.0, 6.0, 1300.0, 1400.0, 1450.0]
+                }
+            )
+        )
+
+        expected_result = pyam.IamDataFrame(
+            pd.DataFrame(
+                {
+                    'model': ['model1']*8,
+                    'scenario': ['scenario1']*8,
+                    'region': ['World']*8,
+                    'variable': ['Primary Energy|Wind']*4 + ['Emissions|CO2']*4,
+                    'unit': ['EJ']*4 + ['Mt CO2/yr']*4,
+                    'year': [2020, 2025, 2030, 2035]*2,
+                    'value': [pd.NA, 1.0*3.6-5.0, 2.0*3.6-6.0, pd.NA,
+                              pd.NA, 1100.0-1400.0, 1500.0-1450.0, pd.NA]
+                }
+            )
+        )
+
+        result = custom_comparison(iamdf1, iamdf2)
+
+        self.assertTrue(pyam.IamDataFrame(result).equals(expected_result))
 ###END class TestPyamSeriesComparison
