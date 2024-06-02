@@ -8,6 +8,8 @@ leverages and integrates with the existing `Criterion` class and related
 methods of the `pathways-ensemble-analysis` package (`pea`).
 """
 import typing as tp
+from collections.abc import Iterable, Callable
+import functools
 import logging
 
 import pyam
@@ -15,7 +17,7 @@ import pandas as pd
 import pathways_ensemble_analysis as pea
 from pathways_ensemble_analysis.criteria.base import Criterion
 
-from iamcompact_vetting.pyam_helpers import broadcast_dims
+from iamcompact_vetting import pyam_helpers
 from .dims import IamDim
 
 
@@ -40,20 +42,17 @@ class TimeseriesRefCriterion(Criterion):
         The reference timeseries to compare against.
     comparison_function : callable
         The function to use to compare the timeseries. The function should take
-        a `pyam.IamDataFrame` and a `pyam.IamDataFrame` as positional arguments
-        and return a `pandas.Series` with comparison values (like differences,
-        ratios or other difference measures). The design of this base class
-        implicitly assumes that the returned `Series` has the same index as the
-        intersection of the indexes of the two `IamDataFrame`s (after
-        broadcasting), but this is not enforced.
-        You can also pass functions that compare the underlying `pandas.Series`
-        objects, which can be significantly faster, by using the
+        two `pyam.IamDataFrame` objects as positional arguments and return a
+        `pandas.Series` with comparison values (like differences, ratios or
+        other difference measures). The first `IamDataFrame` should be one being
+        compared to (`self.reference`) and the second one the object to be
+        compared. The design of this base class implicitly assumes that the
+        returned `Series` has the same index as the intersection of the indexes
+        of the two `IamDataFrame`s (after broadcasting), but this is not
+        enforced. You can also pass functions that compare the underlying
+        `pandas.Series` objects, which can be significantly faster, by using the
         `pyam_series_comparison` decorator (in this module, see separate
-        docstring). In most cases, you will probably also want to prefix that
-        with the `match_units` decorator (also in this module, see separate
-        docstring) to ensure that units are consistent before comparing the
-        Series, but this can be left out to improve performance if you are sure
-        that the units are already consistent.
+        docstring).
     broadcast_dims : iterable of str, optional
         The dimensions to broadcast over when comparing the timeseries. This
         should be a subset of the dimensions of the `reference` timeseries.
@@ -79,13 +78,120 @@ class TimeseriesRefCriterion(Criterion):
         will generally have the same index as the intersection of the indexes of
         the `IamDataFrame` and the `reference` timeseries (after broadcasting),
         but this is not enforced.
-
     rate(s: pd.Series) -> pd.Series
         Rates the comparison values in the given `pandas.Series` using
         `self.rating_function`. The returned `Series` will usually be an
         aggregate over years, and hence have an index without the 'year' level.
     """
 
+    def __init__(
+            self,
+            criterion_name: str,
+            reference: pyam.IamDataFrame,
+            comparison_function: tp.Callable[
+                [pyam.IamDataFrame, pyam.IamDataFrame], pd.Series
+            ],
+            broadcast_dims: Iterable[str] = ('model', 'scenario'),
+            rating_function: Callable[[pd.Series], pd.Series] = \
+                lambda s: s.abs().max(),
+    ):
+        self.reference: pyam.IamDataFrame = reference
+        self.comparison_function: Callable[
+            [pyam.IamDataFrame, pyam.IamDataFrame], pd.Series
+        ] = comparison_function
+        self.broadcast_dims: list[str] = list(broadcast_dims)
+        self.rating_function = rating_function
+        super().__init__(
+            criterion_name=criterion_name,
+            region='*',
+            rating_function=rating_function
+        )
+    ###END def TimeseriesRefCriterion.__init__
+
+    def get_values(self, iamdf: pyam.IamDataFrame) -> pd.Series:
+        """Return comparison values for the given `IamDataFrame`.
+
+        This method returns the comparison values for the given `IamDataFrame`,
+        after broadcasting and other processing and applying
+        `self.comparison_function`. The values are returned as a
+        `pandas.Series`, but in a form that can be converted directly to a
+        `pyam.IamDataFrame` by passing it to the `pyam.IamDataFrame` __init__
+        method. The returned `Series` from `TimeSeriesRefCriterion.get_values`
+        will generally have the same index as the intersection of the indexes of
+        the `IamDataFrame` and the `reference` timeseries (after broadcasting),
+        but this is not enforced.
+
+        Parameters
+        ----------
+        iamdf : pyam.IamDataFrame
+            The `IamDataFrame` to get comparison values for.
+
+        Returns
+        -------
+        pd.Series
+            The comparison values for the given `IamDataFrame`.
+        """
+        ref = pyam_helpers.broadcast_dims(self.reference, iamdf,
+                                          self.broadcast_dims)
+        return self.comparison_function(iamdf, ref)
+    ###END def TimeseriesRefCriterion.get_values
+    
+###END class TimeseriesRefCriterion
 
 
-
+@tp.overload
+def pyam_series_comparison(
+        func: Callable[[pd.Series, pd.Series], pd.Series],
+        *,
+        match_units: bool = True
+) -> Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]:
+    ...
+@tp.overload
+def pyam_series_comparison(
+        *,
+        match_units: bool = True
+) -> Callable[
+        [Callable[[pd.Series, pd.Series], pd.Series]],
+        Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]
+]:
+    ...
+def pyam_series_comparison(
+        func: tp.Optional[Callable[[pd.Series, pd.Series], pd.Series]] = None,
+        *,
+        match_units: bool = True
+) -> Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series] | \
+    Callable[
+        [Callable[[pd.Series, pd.Series], pd.Series]],
+        Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]
+    ]:
+    """Convert function comparing `Series` to one comparing `IamDataFrame`s.
+    
+    The function is designed to be used as a decorator. The decorated function
+    must take two `pandas.Series` objects as positional arguments and return a
+    `pandas.Series`. By default, the units of the first `Series` will be
+    converted to the units of the second `Series` before the comparison is
+    made, using the `pyam_helpers.match_units` function. If you are sure that
+    the units are already consistent, you can pass `match_units=False` to the
+    decorator (an optional keyword argument) to skip this step and improve
+    performance.
+    """
+    def decorator(
+            _func: Callable[[pd.Series, pd.Series], pd.Series]
+    ) -> Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]:
+        @functools.wraps(_func)
+        def wrapper(iamdf1: pyam.IamDataFrame, iamdf2: pyam.IamDataFrame) \
+                -> pd.Series:
+            if match_units:
+                iamdf1 = pyam_helpers.make_consistent_units(
+                    df=iamdf1,
+                    match_df=iamdf2
+                )
+            return _func(
+                pyam_helpers.as_pandas_series(iamdf1),
+                pyam_helpers.as_pandas_series(iamdf2)
+            )
+        return wrapper
+    if func is None:
+        return decorator
+    return decorator(func)
+###END def pyam_series_comparison
