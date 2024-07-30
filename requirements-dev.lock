@@ -82,6 +82,8 @@ configobj==5.0.8
     # via dvc
 contourpy==1.2.1
     # via matplotlib
+coverage==7.6.0
+    # via pytest-cov
 cryptography==42.0.7
     # via asyncssh
 cycler==0.12.1
@@ -353,6 +355,8 @@ pyparsing==3.1.2
     # via matplotlib
     # via pydot
 pytest==8.2.1
+    # via pytest-cov
+pytest-cov==5.0.0
 python-dateutil==2.9.0.post0
     # via celery
     # via jupyter-client
