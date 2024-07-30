@@ -40,8 +40,6 @@ email-validator==2.1.1
     # via fastapi
 et-xmlfile==1.1.0
     # via openpyxl
-exceptiongroup==1.2.1
-    # via anyio
 fastapi==0.111.0
     # via ixmp4
 fastapi-cli==0.0.4
@@ -193,8 +191,6 @@ starlette==0.37.2
     # via fastapi
 toml==0.10.2
     # via ixmp4
-tomli==2.0.1
-    # via mypy
 typeguard==4.2.1
     # via pandera
 typer==0.12.3
@@ -202,7 +198,6 @@ typer==0.12.3
     # via ixmp4
 typing-extensions==4.11.0
     # via alembic
-    # via anyio
     # via fastapi
     # via mypy
     # via pint
@@ -213,7 +208,6 @@ typing-extensions==4.11.0
     # via typeguard
     # via typer
     # via typing-inspect
-    # via uvicorn
 typing-inspect==0.9.0
     # via pandera
 tzdata==2024.1
