@@ -125,7 +125,7 @@ pandas-indexing==0.5.1
     # via iamcompact-vetting
 pandera==0.19.3
     # via ixmp4
-pathways-ensemble-analysis @ file:///home/janko/src/repos/github_forks/pathways-ensemble-analysis
+pathways-ensemble-analysis @ git+https://gitlab.com/climateanalytics/pathways-ensemble-analysis.git@22e1165cb1b1f3e2e9a14b783f91165700502adf
     # via iamcompact-vetting
 pillow==10.3.0
     # via matplotlib
