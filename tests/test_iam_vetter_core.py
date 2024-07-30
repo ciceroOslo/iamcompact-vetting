@@ -108,7 +108,7 @@ def construct_test_iamdf() -> tuple[
         mapping={'TWh/yr': 'EJ/yr'},
         level_name='unit'
     )
-    target_series_electTWb = target_series.where(
+    target_series_electTWh = target_series.where(
         target_series.index.get_level_values('unit') != 'TWh/yr',
         other=target_series * 1000.0 / 3.6
     )
@@ -133,7 +133,7 @@ def construct_test_iamdf() -> tuple[
                 ),
             data_series.xs('ModelB', level='model', drop_level=False) \
                 - replace_level_values(
-                    target_series_electTWb,
+                    target_series_electTWh,
                     mapping={'Target Model': 'ModelB'},
                     level_name='model'
                 )
@@ -149,7 +149,7 @@ def construct_test_iamdf() -> tuple[
                 ),
             data_series.xs('ModelB', level='model', drop_level=False) \
                 / replace_level_values(
-                    target_series_electTWb,
+                    target_series_electTWh,
                     mapping={'Target Model': 'ModelB'},
                     level_name='model'
                 )
@@ -163,7 +163,7 @@ def construct_test_iamdf() -> tuple[
     # The units of the target_series should be 'EJ/yr' everywhere, and not
     # converted, so set the `unit` level of the target series to 'EJ/yr'
     # everywhere.
-    assert isinstance(target_series_allEJ.index, pd.MultiIndex)
+    assert isinstance(target_series_electTWh.index, pd.MultiIndex)
     # target_series.index = target_series.index.set_levels(['EJ/yr'], level='unit')
     # values: pd.Series = pd.Series(
     #     data=[1.0 + 99.0 * i / 5.0 for i in range(6 * 2 * 3 * 2 * 2)],
@@ -171,7 +171,7 @@ def construct_test_iamdf() -> tuple[
     # )
     return (
         IamDataFrame(data_series),
-        notnone(IamDataFrame(target_series_allEJ)),
+        notnone(IamDataFrame(target_series_electTWh)),
         notnone(IamDataFrame(diff_series)),
         notnone(IamDataFrame(ratio_series))
     )
