@@ -8,7 +8,7 @@ leverages and integrates with the existing `Criterion` class and related
 methods of the `pathways-ensemble-analysis` package (`pea`).
 """
 import typing as tp
-from collections.abc import Iterable, Callable
+from collections.abc import Iterable, Callable, Iterator
 import dataclasses
 import functools
 import logging
@@ -55,12 +55,11 @@ class AggFuncTuple:
             ...
     ###END class AggFuncTuple.AggFunc
 
-    agg_func: dataclasses.InitVar[AggFunc|str]
-    func: GroupByAggMethod = dataclasses.field(init=False)
+    func: AggFunc | str
     args: Iterable[tp.Any] = ()
     kwargs: dict[str, tp.Any] = dataclasses.field(default_factory=dict)
 
-    def __post_init__(self, agg_func: AggFunc|str):
+    def __post_init__(self):
         if isinstance(self.func, str):
             # Check that the attribute named `func` of `pandas.SeriesGroupBy`
             # is a method of `pandas.SeriesGroupBy`.
@@ -70,33 +69,25 @@ class AggFuncTuple:
                 )
             object.__setattr__(self, 'func',
                                getattr(SeriesGroupBy, self.func))
-            return
-        if not callable(agg_func):
+        elif not callable(self.func):
             raise TypeError('`func` must be a string or callable.')
-        def _apply_agg_func(g: SeriesGroupBy, *args, **kwargs) -> pd.Series:
-            return g.agg(agg_func, *args, **kwargs)
-        object.__setattr__(self, 'func', _apply_agg_func)
     ###END def AggFuncTuple.__post_init__
 
-    def get_func(self) -> Callable[[pd.Series], pd.Series]:
-        """"Get an aggregation function to be applied to a pandas.Series.
-        
-        This method will return a partial function with the given positional
-        and keyword arguments applied to it. If `self.func` is a string, it
-        will first be looked up in the `pandas.SeriesGroupBy` methods.
-
-        Returns
-        -------
-        Callable[[pandas.Series], pandas.Series]
-            The aggregation function to be applied to the given
-            `pandas.Series`.
-        """
-        return functools.partial(
-            self.func,
-            *self.args,
-            **self.kwargs
-        )
-    ###END def AggFuncTuple.get_func
+    # Define iterator protocol to be able to use the class more like a tuple,
+    # and `keys`, `values` and `__getitem__` to be able to use it like a
+    # mapping.
+    def __iter__(self) -> Iterator[tp.Any]:
+        return iter(dataclasses.astuple(self))
+    def keys(self) -> Iterable[str]:
+        return dataclasses.asdict(self).keys()
+    def values(self) -> Iterable[tp.Any]:
+        return dataclasses.asdict(self).values()
+    def __getitem__(self, key: str|int) -> tp.Any:
+        if isinstance(key, int):
+            return dataclasses.astuple(self)[key]
+        elif isinstance(key, str):
+            return dataclasses.asdict(self)[key]
+    ###END def AggFuncTuple.__iter__
 
 ###END class AggFuncTuple
 
