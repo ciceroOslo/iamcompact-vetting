@@ -8,8 +8,10 @@ import pandas as pd
 import numpy as np
 import pyam
 
-from iamcompact_vetting.iam.timeseries_criteria_core \
-    import pyam_series_comparison
+from iamcompact_vetting.iam.timeseries_criteria_core import (
+    pyam_series_comparison,
+    AggFuncTuple,
+)
 
 
 class TestPyamSeriesComparison(unittest.TestCase):
@@ -173,3 +175,88 @@ class TestPyamSeriesComparison(unittest.TestCase):
 
         self.assertTrue(pyam.IamDataFrame(result).equals(expected_result))
 ###END class TestPyamSeriesComparison
+
+
+
+class TestAggFuncTuple(unittest.TestCase):
+
+    # Creating an instance with a valid callable function passed as a positional parameter
+    def test_create_instance_with_valid_callable(self):
+        def sample_agg_func(series: pd.Series) -> float:
+            return series.sum()
+
+        agg_func_tuple = AggFuncTuple(sample_agg_func)
+        self.assertEqual(agg_func_tuple.func, sample_agg_func)
+        self.assertEqual(agg_func_tuple.args, ())
+        self.assertEqual(agg_func_tuple.kwargs, {})
+
+    # Creating an instance with an invalid string method name
+    def test_create_instance_with_invalid_string_method(self):
+        with self.assertRaises(AttributeError):
+            AggFuncTuple(func="non_existent_method")
+
+    # Creating an instance with a valid string method name of SeriesGroupBy
+    def test_create_instance_with_valid_string_method(self):
+        valid_method_name = 'sum'
+        agg_func_tuple = AggFuncTuple(valid_method_name)
+        self.assertEqual(agg_func_tuple.func, valid_method_name)
+        self.assertEqual(agg_func_tuple.args, ())
+        self.assertEqual(agg_func_tuple.kwargs, {})
+
+    # Iterating over the instance using __iter__
+    def test_iterating_over_instance(self):
+        # Create an instance of AggFuncTuple
+        func = lambda x: x**2
+        agg_func_tuple = AggFuncTuple(func, [1, 2, 3], {'power': 2})
+    
+        # Test iterating over the instance
+        expected_values = (func, [1, 2, 3], {'power': 2})
+        self.assertEqual(tuple(agg_func_tuple), expected_values)
+
+    # Testing the comparison of 'agg_func_tuple.func' with the actual method reference
+    def test_agg_func_tuple_kwargs(self):
+        default_kwargs = {'param1': 100, 'param2': 'test'}
+        agg_func_tuple = AggFuncTuple('mean', kwargs=default_kwargs)
+        self.assertEqual(agg_func_tuple.func, 'mean')
+        self.assertEqual(agg_func_tuple.args, tuple())
+        self.assertEqual(agg_func_tuple.kwargs, default_kwargs)
+
+    # Creating an instance with a non-callable func
+    def test_create_instance_with_non_callable_func(self):
+        with self.assertRaises(TypeError):
+            AggFuncTuple(43.5)  # type: ignore
+        with self.assertRaises(TypeError):
+            AggFuncTuple('__dict__')
+
+    # Accessing fields using __getitem__ with string key
+    def test_access_field_with_string_key(self):
+        # Setup
+        agg_func_tuple = AggFuncTuple('sum', [1, 2, 3], {'axis': 1})
+    
+        # Assertion
+        self.assertEqual(agg_func_tuple['func'], 'sum')
+        self.assertEqual(agg_func_tuple['args'], [1, 2, 3])
+        self.assertEqual(agg_func_tuple['kwargs'], {'axis': 1})
+
+    # Accessing fields using __getitem__ with integer index
+    def test_accessing_fields_with_integer_index(self):
+        # Setup
+        agg_func = lambda x: x**2
+        args = [1, 2, 3]
+        kwargs = {'threshold': 10}
+        agg_func_tuple = AggFuncTuple(agg_func, args, kwargs)
+    
+        # Assertion
+        self.assertEqual(agg_func_tuple[0], agg_func)
+        self.assertEqual(agg_func_tuple[1], args)
+        self.assertEqual(agg_func_tuple[2], kwargs)
+
+    # Correct mapping is generated when prefixing with **
+    def test_correct_mapping_with_prefix(self):
+        # Create an instance of AggFuncTuple with a valid callable function
+        agg_func_tuple = AggFuncTuple('sum', args=(1, 2), kwargs={'key': 'value'})
+
+        expected_mapping = dict(func='sum', args=(1, 2), kwargs={'key': 'value'})
+    
+        # Check if the mapping is correct
+        self.assertEqual(dict(**agg_func_tuple), expected_mapping)
