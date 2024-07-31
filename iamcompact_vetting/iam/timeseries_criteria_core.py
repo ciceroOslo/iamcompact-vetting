@@ -49,10 +49,10 @@ class AggFuncTuple:
     """
 
     class AggFunc(tp.Protocol):
-        def __call__(self, s: pd.Series, *args, **kwargs) -> float:
+        def __call__(self, s: pd.Series, /, *args, **kwargs) -> float:
             ...
     class GroupByAggMethod(tp.Protocol):
-        def __call__(self, g: SeriesGroupBy, *args, **kwargs) -> pd.Series:
+        def __call__(self, g: SeriesGroupBy, /, *args, **kwargs) -> pd.Series:
             ...
     ###END class AggFuncTuple.AggFunc
 
@@ -64,12 +64,12 @@ class AggFuncTuple:
         if isinstance(self.func, str):
             # Check that the attribute named `func` of `pandas.SeriesGroupBy`
             # is a method of `pandas.SeriesGroupBy`.
+            groupby_attr: tp.Any = getattr(SeriesGroupBy, self.func)
             if not callable(getattr(SeriesGroupBy, self.func)):
-                raise AttributeError(
-                    f'`{self.func}` is not a method of `pandas.SeriesGroupBy`.'
+                raise TypeError(
+                    f'`{self.func}` is not a callable method of '
+                    '`pandas.SeriesGroupBy`.'
                 )
-            object.__setattr__(self, 'func',
-                               getattr(SeriesGroupBy, self.func))
         elif not callable(self.func):
             raise TypeError('`func` must be a string or callable.')
     ###END def AggFuncTuple.__post_init__
