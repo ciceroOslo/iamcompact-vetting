@@ -9,6 +9,7 @@ methods of the `pathways-ensemble-analysis` package (`pea`).
 """
 import typing as tp
 from collections.abc import Iterable, Callable, Iterator
+from enum import StrEnum
 import dataclasses
 import functools
 import logging
@@ -20,7 +21,7 @@ import pathways_ensemble_analysis as pea
 from pathways_ensemble_analysis.criteria.base import Criterion
 
 from iamcompact_vetting import pyam_helpers
-from iamcompact_vetting.iam.dims import IamDimName, DIM
+from iamcompact_vetting.iam.dims import IamDimNames, DIM
 
 
 
@@ -92,6 +93,18 @@ class AggFuncTuple:
 ###END class AggFuncTuple
 
 
+class AggDimOrder(StrEnum):
+    """The order in which aggregations should be performed.
+    
+    The class defines which order to apply aggregations in when calling the
+    `get_values` method of the `TimeseriesRefCriterion` class. That method needs
+    to aggregate over both time and regions after calling `compare`.
+    """
+    TIME_FIRST = 'time_first'
+    REGION_FIRST = 'region_first'
+###END class AggDimOrder
+
+
 class TimeseriesRefCriterion(Criterion):
     """Base class for criteria that compare IAM output timeseries.
 
@@ -110,13 +123,6 @@ class TimeseriesRefCriterion(Criterion):
     `scenario` in the index. To achieve this, the user must pass functions that
     aggregate over regions and over time through the `region_agg` and `time_agg`
     parameters of the `__init__` method.
-
-    Unlike most `pea.Criterion` subclasses and methods,
-    which return a single value for an entire model/scenario or a Series with a
-    single value for each model/scenario, the methods of this class return a
-    Series with a value for each year for a single model/scenario pair, or a
-    Series with an additional index level for the year and values for each year
-    for each model/scenario pair.
 
     Note that unlike the `pathways-ensemble-analysis.Criterion` base class,
     this class is intended to be able to check data for multiple regions at
@@ -155,6 +161,22 @@ class TimeseriesRefCriterion(Criterion):
         `pandas.Series` objects, which can be significantly faster, by using the
         `pyam_series_comparison` decorator (in this module, see separate
         docstring).
+    region_agg : AggFuncTuple, tuple, callable or str
+        The function to use to aggregate the timeseries over regions before
+        calling `self.get_values`. If the function does not need to take any
+        arguments, it should be either a callable that takes a `pandas.Series`
+        and returns a float, or a string that is a method name of the pandas
+        `SeriesGroupBy` class. If it takes arguments, it should be a 2- or 
+        3-tuple of the form `(func, args, kwargs)`, where `func` is a callable
+        or string, or an `AggFuncTuple` object (defined in this module).
+    time_agg : AggFuncTuple, tuple, callable or str
+        The function to use to aggregate the timeseries over time before
+        calling `self.get_values`. Must fulfill the same requirements as
+        `region_agg`.
+    agg_dim_order: AggDimOrder or str, optional
+        Which order to apply aggregations in when calling `self.get_values`.
+        Should be an `AggDimOrder` enum, or a string that is equal to one of
+        the enum values. Defaults to `AggDimOrder.REGION_FIRST`.
     broadcast_dims : iterable of str, optional
         The dimensions to broadcast over when comparing the timeseries. This
         should be a subset of the dimensions of the `reference` timeseries.
@@ -162,11 +184,18 @@ class TimeseriesRefCriterion(Criterion):
         a `ValueError` will be raised. `reference` will be broadcast to the
         values of thsese dimensions in the `IamDataFrame` being comopared to
         before being passed to `comparison_function`. Optional, defaults to
-        `['model', 'scenario']`.
+        `('model', 'scenario')`.
     rating_function : callable, optional
         The function to use to rate the comparison values. This function should
         take a `pandas.Series` and return a single value. Optional, defaults to
         absolute max.
+    dim_names : dim.IamDimNames, optional
+        The dimension names of the reference `IamDataFrame`s used for reference
+        and to be vetted. Optional, defaults to `dims.DIM`
+    *args, **kwargs
+        Additional arguments to be passed to the superclass `__init__` method.
+        See the documentation of `pathways-ensemble-analysis.Criterion` for
+        more information.
 
     Methods
     -------
@@ -186,6 +215,15 @@ class TimeseriesRefCriterion(Criterion):
         aggregate over years, and hence have an index without the 'year' level.
     """
 
+    AggFuncArg: tp.TypeAlias = AggFuncTuple \
+        | tuple[
+            AggFuncTuple.AggFunc|str,
+            Iterable[tp.Any],
+            dict[str, tp.Any],
+        ] \
+        | AggFuncTuple.AggFunc \
+        | str
+
     def __init__(
             self,
             criterion_name: str,
@@ -193,24 +231,83 @@ class TimeseriesRefCriterion(Criterion):
             comparison_function: tp.Callable[
                 [pyam.IamDataFrame, pyam.IamDataFrame], pd.Series
             ],
+            region_agg: AggFuncArg,
+            time_agg: AggFuncArg,
+            agg_dim_order: AggDimOrder | str = AggDimOrder.REGION_FIRST,
             broadcast_dims: Iterable[str] = ('model', 'scenario'),
             rating_function: Callable[[pd.Series], pd.Series] = \
                 lambda s: s.abs().max(),
+            dim_names: IamDimNames = DIM,
+            *args,
+            **kwargs,
     ):
         self.reference: pyam.IamDataFrame = reference
         self.comparison_function: Callable[
             [pyam.IamDataFrame, pyam.IamDataFrame], pd.Series
         ] = comparison_function
+        self._time_agg: AggFuncTuple = self._make_agg_func_tuple(time_agg)
+        self._region_agg: AggFuncTuple = self._make_agg_func_tuple(region_agg)
+        self.agg_dim_order: AggDimOrder = AggDimOrder(agg_dim_order)
+        self.dim_names: IamDimNames = dim_names
         self.broadcast_dims: list[str] = list(broadcast_dims)
         self.rating_function = rating_function
         super().__init__(
             criterion_name=criterion_name,
             region='*',
-            rating_function=rating_function
+            rating_function=rating_function,
+            *args,
+            **kwargs
         )
     ###END def TimeseriesRefCriterion.__init__
 
-    def get_values(self, iamdf: pyam.IamDataFrame) -> pd.Series:
+    def _make_agg_func_tuple(self, agg_func: AggFuncArg) -> AggFuncTuple:
+        if isinstance(agg_func, AggFuncTuple):
+            return agg_func
+        if isinstance(agg_func, str):
+            return AggFuncTuple(agg_func)
+        if isinstance(agg_func, tuple):
+            return AggFuncTuple(*agg_func)
+        if callable(agg_func):
+            return AggFuncTuple(agg_func)
+        raise TypeError(f'`agg_func` must be a string, tuple, or callable.')
+    ###END def _make_agg_func_tuple
+
+    def _aggregate_time(self, s: pd.Series) -> pd.Series:
+        """Aggregate Series returned by `self.compare` over time."""
+        agg_func_tuple: AggFuncTuple = self._time_agg
+        return s.groupby(self.dim_names.TIME).agg(
+            agg_func_tuple.func,
+            *agg_func_tuple.args,
+            **agg_func_tuple.kwargs
+        )
+    ###END def TimeseriesRefCriterion._aggregate_time
+
+    def _aggregate_region(self, s: pd.Series) -> pd.Series:
+        """Aggregate Series returned by `self.compare` over regions."""
+        agg_func_tuple: AggFuncTuple = self._region_agg
+        return s.groupby(self.dim_names.REGION).agg(
+            agg_func_tuple.func,
+            *agg_func_tuple.args,
+            **agg_func_tuple.kwargs
+        )
+    ###END def TimeseriesRefCriterion._aggregate_region
+
+    def aggregate_time_and_region(self, s: pd.Series) -> pd.Series:
+        """Aggregate Series returned by `self.compare` over time and regions,
+        
+        This method is used to aggregate the output from `self.compare` before
+        passing it to `self.get_values`. Aggregation over time and regions is
+        done in the order specified by the `agg_dim_order` parameter passed to
+        the `__init__` method.
+        """
+        if self.agg_dim_order == AggDimOrder.REGION_FIRST:
+            return self._aggregate_region(self._aggregate_time(s))
+        if self.agg_dim_order == AggDimOrder.TIME_FIRST:
+            return self._aggregate_time(self._aggregate_region(s))
+        raise RuntimeError(f'Unknown `agg_dim_order` {self.agg_dim_order}.')
+    ###END def TimeseriesRefCriterion.aggregate_time_and_region
+
+    def compare(self, iamdf: pyam.IamDataFrame) -> pd.Series:
         """Return comparison values for the given `IamDataFrame`.
 
         This method returns the comparison values for the given `IamDataFrame`,
@@ -236,6 +333,14 @@ class TimeseriesRefCriterion(Criterion):
         ref = pyam_helpers.broadcast_dims(self.reference, iamdf,
                                           self.broadcast_dims)
         return self.comparison_function(iamdf, ref)
+    ###END def TimeseriesRefCriterion.get_values
+
+    def get_values(
+            self,
+            file: pyam.IamDataFrame,
+    ) -> pd.Series:
+        """Return comparison values aggregated over region and time."""
+        return self.aggregate_time_and_region(self.compare(file))
     ###END def TimeseriesRefCriterion.get_values
 
 ###END class TimeseriesRefCriterion
