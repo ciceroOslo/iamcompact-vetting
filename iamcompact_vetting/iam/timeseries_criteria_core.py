@@ -29,25 +29,38 @@ class AggFuncTuple:
     """Class to hold an aggregation function and its parameter values.
     
     Fields
-    ----------
-    func : Callable[[pandas.Series], pandas.Series] or str
-        The aggregation function to be applied, or the name of a method of
-        `pandas.SeriesGroupBy` to be called.
+    ------
+    func : Callable[[SeriesGroupBy], pandas.Series]
+        The aggregation function to be applied. This field should not be set
+        directly, instead use the `agg_func` parameter of the `__init__`
+        method of this class.
     args : Iterable, optional
         The positional arguments to be passed to the aggregation function.
     kwargs : dict, optional
         The keyword arguments to be passed to the aggregation function.
+
+    Init Parameters
+    ---------------
+    agg_func : Callable[[pandas.Series], float] or str
+        The aggregation function to be applied by a pandas `SeriesGroupBy`
+        object to aggregate over a given dimension, or the name of a method
+        of the pandas `SeriesGroupBy` class.
     """
+
     class AggFunc(tp.Protocol):
-        def __call__(self, s: pd.Series, *args, **kwargs) -> pd.Series:
+        def __call__(self, s: pd.Series, *args, **kwargs) -> float:
+            ...
+    class GroupByAggMethod(tp.Protocol):
+        def __call__(self, g: SeriesGroupBy, *args, **kwargs) -> pd.Series:
             ...
     ###END class AggFuncTuple.AggFunc
 
-    func: AggFunc | str
+    agg_func: dataclasses.InitVar[AggFunc|str]
+    func: GroupByAggMethod = dataclasses.field(init=False)
     args: Iterable[tp.Any] = ()
     kwargs: dict[str, tp.Any] = dataclasses.field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self, agg_func: AggFunc|str):
         if isinstance(self.func, str):
             # Check that the attribute named `func` of `pandas.SeriesGroupBy`
             # is a method of `pandas.SeriesGroupBy`.
@@ -56,9 +69,13 @@ class AggFuncTuple:
                     f'`{self.func}` is not a method of `pandas.SeriesGroupBy`.'
                 )
             object.__setattr__(self, 'func',
-                               getattr(pd.Series.groupby, self.func))
-        if not callable(self.func):
+                               getattr(SeriesGroupBy, self.func))
+            return
+        if not callable(agg_func):
             raise TypeError('`func` must be a string or callable.')
+        def _apply_agg_func(g: SeriesGroupBy, *args, **kwargs) -> pd.Series:
+            return g.agg(agg_func, *args, **kwargs)
+        object.__setattr__(self, 'func', _apply_agg_func)
     ###END def AggFuncTuple.__post_init__
 
     def get_func(self) -> Callable[[pd.Series], pd.Series]:
@@ -74,7 +91,6 @@ class AggFuncTuple:
             The aggregation function to be applied to the given
             `pandas.Series`.
         """
-        assert callable(self.func)
         return functools.partial(
             self.func,
             *self.args,
