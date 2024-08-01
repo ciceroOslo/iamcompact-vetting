@@ -11,6 +11,7 @@ import pyam
 from iamcompact_vetting.iam.timeseries_criteria_core import (
     pyam_series_comparison,
     AggFuncTuple,
+    TimeseriesRefCriterion,
 )
 
 
@@ -260,3 +261,135 @@ class TestAggFuncTuple(unittest.TestCase):
     
         # Check if the mapping is correct
         self.assertEqual(dict(**agg_func_tuple), expected_mapping)
+
+###END class TestAggFuncTuple
+
+
+class TestTimeseriesRefCriterion(unittest.TestCase):
+
+    # Initializing TimeseriesRefCriterion with valid parameters should create an instance correctly
+    def test_initialization_with_valid_parameters(self):
+        reference = pyam.IamDataFrame(data=pd.DataFrame({
+            'model': ['model_a'],
+            'scenario': ['scenario_a'],
+            'region': ['region_a'],
+            'variable': ['variable_a'],
+            'unit': ['unit_a'],
+            'year': [2020],
+            'value': [1.0]
+        }))
+        comparison_function = lambda df1, df2: pd.Series([1.0])
+        region_agg = 'sum'
+        time_agg = 'mean'
+        criterion = TimeseriesRefCriterion(
+            criterion_name='test_criterion',
+            reference=reference,
+            comparison_function=comparison_function,
+            region_agg=region_agg,
+            time_agg=time_agg
+        )
+        self.assertIsInstance(criterion, TimeseriesRefCriterion)
+        self.assertEqual(criterion.criterion_name, 'test_criterion')
+        self.assertEqual(criterion.reference, reference)
+        self.assertEqual(criterion.comparison_function, comparison_function)
+        self.assertEqual(criterion._region_agg.func, 'sum')
+        self.assertEqual(criterion._time_agg.func, 'mean')
+
+    # Initializing TimeseriesRefCriterion with invalid agg_func types should raise a TypeError
+    def test_initialization_with_invalid_agg_func(self):
+        reference = pyam.IamDataFrame(data=pd.DataFrame({
+            'model': ['model_a'],
+            'scenario': ['scenario_a'],
+            'region': ['region_a'],
+            'variable': ['variable_a'],
+            'unit': ['unit_a'],
+            'year': [2020],
+            'value': [1.0]
+        }))
+        comparison_function = lambda df1, df2: pd.Series([1.0])
+        invalid_agg_func = 123  # Invalid type for agg_func
+
+        with self.assertRaises(TypeError):
+            TimeseriesRefCriterion(
+                criterion_name='test_criterion',
+                reference=reference,
+                comparison_function=comparison_function,
+                region_agg=invalid_agg_func,
+                time_agg='mean'
+            )
+
+    # _aggregate_time method should correctly aggregate a pd.Series over time
+    def test_aggregate_time_method_correctly_aggregates_series(self):
+        # Prepare
+        from statistics import mean
+        criterion_name = 'test_criterion'
+        values_a: list[float] = [1.5, 3.7, 17.93, 7.1, 13.2]
+        values_b: list[float] = [109.17, 147.47, 99.7, 199.9, 213.0]
+        assert len(values_a) == len(values_b)
+        time_length: int = len(values_a)
+        regions_num: int = 2
+        data_length: int = time_length*regions_num
+        reference_and_data = pyam.IamDataFrame(data=pd.DataFrame({
+            'model': ['model_a']*data_length,
+            'scenario': ['scenario_a']*data_length,
+            'region': ['region_a']*time_length + ['region_b']*time_length,
+            'variable': ['variable_a']*data_length,
+            'unit': ['unit_a']*data_length,
+            'year': list(range(2020, 2020+time_length))*regions_num,
+            'value': values_a + values_b,
+        }))
+        comparison_function = lambda df1, df2: pd.Series([1.0])
+        region_agg = 'sum'
+        time_agg = 'mean'
+        criterion = TimeseriesRefCriterion(
+            criterion_name=criterion_name,
+            reference=reference_and_data,
+            comparison_function=comparison_function,
+            region_agg=region_agg,
+            time_agg=time_agg
+        )
+
+        # Execute
+        time_aggregated_series = \
+            criterion._aggregate_time(reference_and_data._data)
+
+        # Assert correct type
+        self.assertIsInstance(time_aggregated_series, pd.Series)
+
+        # Assert correct aggregations
+        time_mean_series = pd.DataFrame(
+            {
+                'model': ['model_a']*regions_num,
+                'scenario': ['scenario_a']*regions_num,
+                'region': ['region_a', 'region_b'],
+                'variable': ['variable_a']*regions_num,
+                'unit': ['unit_a']*regions_num,
+                'value': [mean(values_a), mean(values_b)]
+            }
+        ).set_index(['model', 'scenario',
+                     'region', 'variable', 'unit'])['value']
+
+        self.assertTrue(time_aggregated_series.equals(time_mean_series))
+
+        region_aggregated_series = \
+            criterion._aggregate_region(reference_and_data._data)
+
+        self.assertIsInstance(region_aggregated_series, pd.Series)
+
+        region_sum_series = pd.DataFrame(
+            {
+                'model': ['model_a']*time_length,
+                'scenario': ['scenario_a']*time_length,
+                'variable': ['variable_a']*time_length,
+                'unit': ['unit_a']*time_length,
+                'year': list(range(2020, 2020+time_length)),
+                'value': [_val_a + _val_b
+                          for _val_a, _val_b in zip(values_a, values_b)]
+            }
+        ).set_index(['model', 'scenario', 'variable', 'unit', 'year'])['value']
+
+        self.assertTrue(region_aggregated_series.equals(region_sum_series))
+
+    ###END def TestTimeseriesRefCriterion.test_aggregate_time_method
+
+###END class TestTimeseriesRefCriterion
