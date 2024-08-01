@@ -226,7 +226,7 @@ class TestAggFuncTuple(unittest.TestCase):
     # Creating an instance with a non-callable func
     def test_create_instance_with_non_callable_func(self):
         with self.assertRaises(TypeError):
-            AggFuncTuple(43.5)  # type: ignore
+            AggFuncTuple(43.5)  # pyright: ignore[reportArgumentType]
         with self.assertRaises(TypeError):
             AggFuncTuple('__dict__')
 
@@ -316,7 +316,7 @@ class TestTimeseriesRefCriterion(unittest.TestCase):
                 criterion_name='test_criterion',
                 reference=reference,
                 comparison_function=comparison_function,
-                region_agg=invalid_agg_func,
+                region_agg=invalid_agg_func,  # pyright: ignore[reportArgumentType]
                 time_agg='mean'
             )
     ###END def TestTimeseriesRefCriterion.test_initialization_with_invalid_agg_func
