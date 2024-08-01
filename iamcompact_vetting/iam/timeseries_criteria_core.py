@@ -363,7 +363,7 @@ class TimeseriesRefCriterion(Criterion):
         """
         ref = pyam_helpers.broadcast_dims(self.reference, iamdf,
                                           self.broadcast_dims)
-        return self.comparison_function(iamdf, ref)
+        return self.comparison_function(ref, iamdf)
     ###END def TimeseriesRefCriterion.get_values
 
     def get_values(

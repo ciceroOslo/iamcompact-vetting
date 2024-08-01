@@ -91,7 +91,7 @@ def make_consistent_units(
             if isinstance(target_unit, str):
                 converted_dfs.append(
                     notnone(
-                        notnone(df.filter(variable=_var)) \
+                        notnone(df.filter(variable=_var, unit=_source_unit)) \
                             .convert_unit(_source_unit, to=target_unit)
                     )
                 )
