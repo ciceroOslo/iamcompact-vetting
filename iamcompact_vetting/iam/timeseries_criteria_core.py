@@ -160,7 +160,21 @@ class TimeseriesRefCriterion(Criterion):
         enforced. You can also pass functions that compare the underlying
         `pandas.Series` objects, which can be significantly faster, by using the
         `pyam_series_comparison` decorator (in this module, see separate
-        docstring).
+        docstring). *NB!* The return value of `comparison_function` is specified
+        as `pandas.Series` in order to allow more flexibility in dimensionality
+        (i.e., index levels) than would be possible with a `pyam.IamDataFrame`.
+        however, when possible, it is best practice to return a `pandas.Series`
+        with a format that can be passed directly to `pyam.IamDataFrame` to
+        construct a full `pyam.IamDataFrame` object (albeit with empty
+        metadata). *NB!* It is the responsibility of the user to ensure that the
+        returned `Series` has the correct units in the `unit` index level. If
+        the `pyam_series_comparison` decorator is used, the units in the input
+        will be made compatible before computation so that the resulting values
+        are likely to be correct, but the unit name may no longer be correct.
+        For example, if the comparison takes ratios or precentagewise
+        differences, the units of the output will not be the same as the units
+        of the inputs, and the user is responsible for ensuring that this is
+        correctly reflected in the `unit` index level of the returned `Series`.
     region_agg : AggFuncTuple, tuple, callable or str
         The function to use to aggregate the timeseries over regions before
         calling `self.get_values`. If the function does not need to take any
