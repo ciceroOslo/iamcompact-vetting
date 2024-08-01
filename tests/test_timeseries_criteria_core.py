@@ -13,6 +13,7 @@ from iamcompact_vetting.iam.timeseries_criteria_core import (
     AggFuncTuple,
     TimeseriesRefCriterion,
 )
+from iamcompact_vetting.iam.dims import UnknownDimensionNameError
 
 
 class TestPyamSeriesComparison(unittest.TestCase):
@@ -294,6 +295,7 @@ class TestTimeseriesRefCriterion(unittest.TestCase):
         self.assertEqual(criterion.comparison_function, comparison_function)
         self.assertEqual(criterion._region_agg.func, 'sum')
         self.assertEqual(criterion._time_agg.func, 'mean')
+    ###END def TestTimeseriesRefCriterion.test_initialization_with_valid_parameters
 
     # Initializing TimeseriesRefCriterion with invalid agg_func types should raise a TypeError
     def test_initialization_with_invalid_agg_func(self):
@@ -317,6 +319,35 @@ class TestTimeseriesRefCriterion(unittest.TestCase):
                 region_agg=invalid_agg_func,
                 time_agg='mean'
             )
+    ###END def TestTimeseriesRefCriterion.test_initialization_with_invalid_agg_func
+
+    # Method should raise a ValueError if broadcast_dims are missing in IamDataFrame
+    def test_broadcast_dims_missing_in_iamdataframe(self):
+        # Prepare
+        criterion_name = 'test_criterion'
+        reference = pyam.IamDataFrame(data=pd.DataFrame({
+            'model': ['model_a'],
+            'scenario': ['scenario_a'],
+            'region': ['region_a'],
+            'variable': ['variable_a'],
+            'unit': ['unit_a'],
+            'year': [2020],
+            'value': [1.0],
+        }))
+        comparison_function = lambda df1, df2: pd.Series([1.0])
+        region_agg = 'sum'
+        time_agg = 'mean'
+        broadcast_dims = ['model', 'scenario', 'missing_dim']  # Missing 'year'
+        with self.assertRaises(UnknownDimensionNameError):
+            TimeseriesRefCriterion(
+                criterion_name=criterion_name,
+                reference=reference,
+                comparison_function=comparison_function,
+                region_agg=region_agg,
+                time_agg=time_agg,
+                broadcast_dims=broadcast_dims
+            )
+    ###END def TestTimeseriesRefCriterion.test_broadcast_dims_missing_in_iamdataframe
 
     # _aggregate_time method should correctly aggregate a pd.Series over time
     def test_aggregate_time_method_correctly_aggregates_series(self):

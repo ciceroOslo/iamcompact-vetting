@@ -22,7 +22,11 @@ import pathways_ensemble_analysis as pea
 from pathways_ensemble_analysis.criteria.base import Criterion
 
 from iamcompact_vetting import pyam_helpers
-from iamcompact_vetting.iam.dims import IamDimNames, DIM
+from iamcompact_vetting.iam.dims import (
+    IamDimNames,
+    DIM,
+    UnknownDimensionNameError,
+)
 
 
 
@@ -263,6 +267,12 @@ class TimeseriesRefCriterion(Criterion):
         self._time_agg: AggFuncTuple = self._make_agg_func_tuple(time_agg)
         self._region_agg: AggFuncTuple = self._make_agg_func_tuple(region_agg)
         self.agg_dim_order: AggDimOrder = AggDimOrder(agg_dim_order)
+        # Raise ValueError if `broadcast_dims` is not a subset of `reference.dimensions`
+        if any(
+                _dim not in reference.dimensions for _dim in broadcast_dims
+        ):
+            raise UnknownDimensionNameError('`broadcast_dims` must be a subset '
+                                            'of `reference.dimensions`')
         self.dim_names: IamDimNames = dim_names
         self.broadcast_dims: list[str] = list(broadcast_dims)
         self.rating_function = rating_function

@@ -20,3 +20,9 @@ class IamDimNames:
 
 DIM: IamDimNames = IamDimNames()
 """`IamDimNames` instance with default dimension names IamDataFrames."""
+
+
+class UnknownDimensionNameError(ValueError):
+    """Exception raised when an unknown dimension name is encountered."""
+    ...
+###END class UnknownDimensionNameError
