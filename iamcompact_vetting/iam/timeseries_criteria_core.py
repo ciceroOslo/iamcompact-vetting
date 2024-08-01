@@ -16,6 +16,7 @@ import logging
 
 import pyam
 import pandas as pd
+from pandas.core.indexes.frozen import FrozenList
 from pandas.core.groupby import SeriesGroupBy
 import pathways_ensemble_analysis as pea
 from pathways_ensemble_analysis.criteria.base import Criterion
@@ -289,7 +290,10 @@ class TimeseriesRefCriterion(Criterion):
     def _aggregate_time(self, s: pd.Series) -> pd.Series:
         """Aggregate Series returned by `self.compare` over time."""
         agg_func_tuple: AggFuncTuple = self._time_agg
-        return s.groupby(self.dim_names.TIME).agg(
+        return s.groupby(
+            tp.cast(FrozenList, s.index.names) \
+                .difference([self.dim_names.TIME]),
+        ).agg(
             agg_func_tuple.func,
             *agg_func_tuple.args,
             **agg_func_tuple.kwargs
@@ -299,7 +303,10 @@ class TimeseriesRefCriterion(Criterion):
     def _aggregate_region(self, s: pd.Series) -> pd.Series:
         """Aggregate Series returned by `self.compare` over regions."""
         agg_func_tuple: AggFuncTuple = self._region_agg
-        return s.groupby(self.dim_names.REGION).agg(
+        return s.groupby(
+            tp.cast(FrozenList, s.index.names) \
+                .difference([self.dim_names.REGION]),
+        ).agg(
             agg_func_tuple.func,
             *agg_func_tuple.args,
             **agg_func_tuple.kwargs
