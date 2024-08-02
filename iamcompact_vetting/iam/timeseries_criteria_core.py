@@ -332,9 +332,9 @@ class TimeseriesRefCriterion(Criterion):
         the `__init__` method.
         """
         if self.agg_dim_order == AggDimOrder.REGION_FIRST:
-            return self._aggregate_region(self._aggregate_time(s))
-        if self.agg_dim_order == AggDimOrder.TIME_FIRST:
             return self._aggregate_time(self._aggregate_region(s))
+        if self.agg_dim_order == AggDimOrder.TIME_FIRST:
+            return self._aggregate_region(self._aggregate_time(s))
         raise RuntimeError(f'Unknown `agg_dim_order` {self.agg_dim_order}.')
     ###END def TimeseriesRefCriterion.aggregate_time_and_region
 
