@@ -17,14 +17,7 @@ from iamcompact_vetting.iam.timeseries_criteria_core import (
 from iamcompact_vetting.iam.dims import UnknownDimensionNameError
 from iamcompact_vetting.pdhelpers import replace_level_values
 
-
-
-TV = tp.TypeVar('TV')
-def notnone(x: TV|None) -> TV:
-    assert x is not None
-    return x
-###END def notnone
-
+from . import notnone
 
 class TestPyamSeriesComparison(unittest.TestCase):
     """Tests for the pyam_series_comparison decorator."""
