@@ -9,15 +9,15 @@ import pandas as pd
 import numpy as np
 import pyam
 
-from iamcompact_vetting.iam.timeseries_criteria_core import (
+from iamcompact_vetting.pea_timeseries.timeseries_criteria_core import (
     pyam_series_comparison,
     AggFuncTuple,
     TimeseriesRefCriterion,
 )
-from iamcompact_vetting.iam.dims import UnknownDimensionNameError
+from iamcompact_vetting.pea_timeseries.dims import UnknownDimensionNameError
 from iamcompact_vetting.pdhelpers import replace_level_values
 
-from . import get_test_energy_iamdf_tuple as construct_test_iamdf
+from .. import get_test_energy_iamdf_tuple as construct_test_iamdf
 
 
 

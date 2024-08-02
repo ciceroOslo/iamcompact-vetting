@@ -21,8 +21,8 @@ from pandas.core.groupby import SeriesGroupBy
 import pathways_ensemble_analysis as pea
 from pathways_ensemble_analysis.criteria.base import Criterion
 
-from iamcompact_vetting import pyam_helpers
-from iamcompact_vetting.iam.dims import (
+from .. import pyam_helpers
+from .dims import (
     IamDimNames,
     DIM,
     UnknownDimensionNameError,
