@@ -12,6 +12,8 @@ from iamcompact_vetting.pyam_helpers import (
     broadcast_dims
 )
 
+from . import get_test_energy_iamdf_tuple, notnone
+
 
 class TestMakeConsistentUnits(unittest.TestCase):
     """Tests for the make_consistent_units function."""
@@ -96,6 +98,35 @@ class TestMakeConsistentUnits(unittest.TestCase):
         for variable in result.variable:
             self.assertTrue(result.equals(expected_df))
     ###END def TestMakeConsistentUnits.test_make_consistent_units_with_different_units
+
+
+    def test_non_uniform_models_failcase(self):
+        """Test that the method fails if the units to be matched are ambiguous.
+
+        In this case, if two models in the IamDataFrame to be matched have
+        different units, but the source data does not.
+        """
+        to_be_matched_df: pyam.IamDataFrame
+        orig_df: pyam.IamDataFrame
+        diff_df: pyam.IamDataFrame
+        converted_df: pyam.IamDataFrame
+        to_be_matched_df, orig_df, diff_df, _ = get_test_energy_iamdf_tuple()
+        # Check that we get the expected results if we filter on ModelB and take
+        # the difference. This is just a check that the testing data itself is
+        # not broken, not of the functionality we are trying to test.
+        pd.testing.assert_series_equal(
+            diff_df._data.filter(model='ModelB'),
+            notnone(to_be_matched_df.filter(model='ModelB'))._data \
+            - notnone(orig_df.rename(model={'Target Model': 'ModelB'}))._data
+        )
+        with self.assertRaises(ValueError):
+            converted_df = make_consistent_units(
+                df=orig_df,
+                match_df=to_be_matched_df,
+                match_dims = ('scenario', 'region'),
+            )
+    ###END def TestMakeConsistentUnits.test_non_uniform_models_failcase
+
 
 ###END class TestMakeConsistentUnits
 
