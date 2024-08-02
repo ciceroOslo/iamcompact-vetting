@@ -97,7 +97,7 @@ class CriterionTargetRange:
             _convert_value_units = convert_value_units
         else:
             if (unit is not None) and \
-                    (hasattr(criterion, 'unit') and criterion.unit is not None):
+                    (getattr(criterion, 'unit', None) is not None):
                 _convert_value_units = True
             else:
                 _convert_value_units = False
