@@ -1,24 +1,12 @@
-"""Tests for the IAM Vetter Core module.
-
-In particular contains setting up test data and performing tests on the
-`iamcompact_vetting.iam.iam_vetter_core.IamDataFrameTimeseriesVetter` class.
-"""
+"""Common resources for testing"""
 import typing as tp
-import unittest
 
-import pandas as pd
-from pyam import IamDataFrame
 import pyam
+import pandas as pd
 import numpy as np
 
 from iamcompact_vetting.pdhelpers import replace_level_values
-from iamcompact_vetting.iam.iam_vetter_core import (
-    IamDataFrameTimeseriesVetter,
-    IamDataFrameVariableDiff,
-    # IamDataFrameVariableRatio,
-    IamDataFrameTimeseriesCheckResult
-)
-from iamcompact_vetting.vetter_base import FinishedStatus
+
 
 
 TV = tp.TypeVar('TV')
@@ -28,22 +16,13 @@ def notnone(x: TV|None) -> TV:
 ###END def notnone
 
 
-# Construct an IamDataFrame with years 2005, 2010, 2015, 2020, 2025, 2030, and 2
-# variables 'Primary Energy' and 'Secondary Energy|Electricity', with two models
-# 'ModelA' and 'ModelB', and two scenarios 'Scenario1' and 'Scenario2', as well
-# as three regions 'Region1', 'Region2', and 'Region3'. 'Secondary
-# Energy|Electricity' should have units 'EJ/yr' for 'ModelA' and 'TWh/yr' for
-# 'ModelB'. 'Primary Energy' should have numbers that vary between 1 and 100 in
-# all cases, and 'Secondary Energy|Electricity' should have numbers that vary
-# between 0.1 and 10 when the unit is 'EJ/yr' and 30 and 3000 when the unit is
-# 'TWh/yr'.
-def construct_test_iamdf() -> tuple[
-        IamDataFrame,
-        IamDataFrame,
-        IamDataFrame,
-        IamDataFrame
+def get_test_energy_iamdf_tuple() -> tuple[
+        pyam.IamDataFrame,
+        pyam.IamDataFrame,
+        pyam.IamDataFrame,
+        pyam.IamDataFrame,
 ]:
-    """Construct a test IamDataFrame for testing the IamDataFrameTimeseriesVetter.
+    """Make IamDataFrames for testing comparisons using TimeseriesRefCriterion.
     
     Returns
     -------
@@ -170,80 +149,9 @@ def construct_test_iamdf() -> tuple[
     #     index=index
     # )
     return (
-        IamDataFrame(data_series),
-        notnone(IamDataFrame(target_series_electTWh)),
-        notnone(IamDataFrame(diff_series)),
-        notnone(IamDataFrame(ratio_series))
+        pyam.IamDataFrame(data_series),
+        notnone(pyam.IamDataFrame(target_series_electTWh)),
+        notnone(pyam.IamDataFrame(diff_series)),
+        notnone(pyam.IamDataFrame(ratio_series))
     )
 ###END def construct_test_iamdf
-
-
-class TestIamDataFrameTimeseriesVetterDiffRatio(unittest.TestCase):
-    """Tests for the IamDataFrameTimeseriesVetter class.
-    
-    These test use the `iam_vetter_core.IamDataFrameVariableDiff` and
-    `iam_vetter_core.IamDataFrameVariableRatio` classes to compare values, and
-    thereby test both the `IamDataFrameTimeseriesVetter` class and the
-    `IamDataFrameTimeseriesVariableComparison` class.
-    """
-
-    data_df: IamDataFrame
-    target_df: IamDataFrame
-    diff_df: IamDataFrame
-    ratio_df: IamDataFrame
-    diff_comparison: IamDataFrameVariableDiff
-    # ratio_comparison: IamDataFrameVariableRatio
-    
-    def setUp(self) -> None:
-        """Set up the test data for the IamDataFrameTimeseriesVetter tests."""
-        self.data_df, self.target_df, self.diff_df, self.ratio_df = \
-            construct_test_iamdf()
-    ###END def TestIamDataFrameTimeseriesVetterDiffRatio.setUp
-
-    def test_diff_vetter_no_var_suffix(self) -> None:
-        """Test IamDataFrameTimeseriesVetter with IamDataFrameVariableDiff."""
-        diff_vetter_no_var_suffix = IamDataFrameTimeseriesVetter(
-            target=self.target_df,
-            comparisons=[
-                IamDataFrameVariableDiff(
-                    match_dims=['scenario', 'region', 'variable', 'year'],
-                    var_suffix='',
-                    var_prefix=''
-                )
-            ],
-            status_mapping=lambda _idf: FinishedStatus.FINISHED
-        )
-        results: IamDataFrameTimeseriesCheckResult[FinishedStatus] \
-            = diff_vetter_no_var_suffix.check(self.data_df)
-        self.assertEqual(results.status, FinishedStatus.FINISHED)
-        self.assertTrue(results.value.equals(self.data_df))
-        self.assertTrue(results.target_value.equals(self.target_df))
-        self.assertTrue(results.measure.equals(self.diff_df))
-    ###END def TestIamDataFrameTimeseriesVetterDiffRatio.test_diff_vetter
-
-    def test_diff_vetter_default_var_suffix(self) -> None:
-        """Test IamDataFrameTimeseriesVetter with IamDataFrameVariableDiff."""
-        diff_vetter_no_var_suffix = IamDataFrameTimeseriesVetter(
-            target=self.target_df,
-            comparisons=[
-                IamDataFrameVariableDiff(
-                    match_dims=['scenario', 'region', 'variable', 'year'],
-                )
-            ],
-            status_mapping=lambda _idf: FinishedStatus.FINISHED
-        )
-        results: IamDataFrameTimeseriesCheckResult[FinishedStatus] \
-            = diff_vetter_no_var_suffix.check(self.data_df)
-        diff_var_rename_dict: dict[str, str] = {
-            _varname: _varname + '|Difference' for _varname in self.diff_df.variable
-        }
-        self.assertEqual(results.status, FinishedStatus.FINISHED)
-        self.assertTrue(results.value.equals(self.data_df))
-        self.assertTrue(results.target_value.equals(self.target_df))
-        self.assertTrue(results.measure.equals(
-            self.diff_df.rename(variable=diff_var_rename_dict)
-        ))
-    ###END def TestIamDataFrameTimeseriesVetterDiffRatio.test_diff_vetter
-
-###END class TestIamDataFrameTimeseriesVetterDiffRatio
-    

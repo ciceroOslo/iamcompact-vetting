@@ -9,7 +9,10 @@ import pandas as pd
 from iamcompact_vetting.pyam_helpers import (
     make_consistent_units,
     as_pandas_series,
+    broadcast_dims
 )
+
+from . import get_test_energy_iamdf_tuple, notnone
 
 
 class TestMakeConsistentUnits(unittest.TestCase):
@@ -96,6 +99,71 @@ class TestMakeConsistentUnits(unittest.TestCase):
             self.assertTrue(result.equals(expected_df))
     ###END def TestMakeConsistentUnits.test_make_consistent_units_with_different_units
 
+
+    def test_non_uniform_models_failcase(self):
+        """Test that the method fails if the units to be matched are ambiguous.
+
+        In this case, if two models in the IamDataFrame to be matched have
+        different units, but the source data does not.
+        """
+        to_be_matched_df: pyam.IamDataFrame
+        orig_df: pyam.IamDataFrame
+        diff_df: pyam.IamDataFrame
+        converted_df: pyam.IamDataFrame
+        to_be_matched_df, orig_df, diff_df, _ = get_test_energy_iamdf_tuple()
+        # Check that we get the expected results if we filter on ModelB and take
+        # the difference. This is just a check that the testing data itself is
+        # not broken, not of the functionality we are trying to test.
+        pd.testing.assert_series_equal(
+            notnone(diff_df.filter(model='ModelB'))._data,
+            notnone(to_be_matched_df.filter(model='ModelB'))._data \
+                - notnone(orig_df.rename(model={'Target Model': 'ModelB'}))._data,
+            check_index=True,
+            check_like=True,
+        )
+        with self.assertRaises(ValueError):
+            converted_df = make_consistent_units(
+                df=orig_df,
+                match_df=to_be_matched_df,
+                match_dims = ('scenario', 'region'),
+            )
+    ###END def TestMakeConsistentUnits.test_non_uniform_models_failcase
+
+
+    def test_non_uniform_models_succeedcase(self):
+        """Test case where different models have different units.
+        
+        The "original" data here needs to be broadcast before matching units.
+        """
+        to_be_matched_df: pyam.IamDataFrame
+        orig_df: pyam.IamDataFrame
+        diff_df: pyam.IamDataFrame
+        converted_df: pyam.IamDataFrame
+        to_be_matched_df, orig_df, diff_df, _ = get_test_energy_iamdf_tuple()
+        # Manually broadcast `orig_df` to the two models in `to_be_matched_df`
+        orig_df_broadcast = pyam.concat(
+            [
+                orig_df.rename(model={'Target Model': 'ModelA'}),
+                orig_df.rename(model={'Target Model': 'ModelB'}),
+            ]
+        )
+        converted_df = make_consistent_units(
+            df=orig_df_broadcast,
+            match_df=to_be_matched_df,
+            match_dims = ('model', 'scenario', 'region'),
+        )
+        # Check that we get the expected results if we filter on ModelB and take
+        # the difference. This is just a check that the testing data itself is
+        # not broken, not of the functionality we are trying to test.
+        pd.testing.assert_series_equal(
+            diff_df._data,
+            to_be_matched_df._data - converted_df._data,
+            check_index=True,
+            check_like=True,
+            check_dtype=True,
+        )
+    ###END def TestMakeConsistentUnits.test_non_uniform_models_succeedcase
+
 ###END class TestMakeConsistentUnits
 
 
@@ -151,3 +219,95 @@ class TestAsPandasSeries(unittest.TestCase):
     ###END def TestAsPandasSeries.test_empty_IamDataFrame
 
 ###END class TestAsPandasSeries
+
+
+class TestBroadcastDims(unittest.TestCase):
+
+    # Successfully broadcast dimensions when there is one dimension in dims, and
+    # only a single coordinate value for that dimension in `df`
+    def test_successful_broadcast_single_dim(self):
+        df_data = pd.DataFrame([
+            ['model_a', 'scen_c', 'region_a', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_a', 'region_a', 'variable_a', 'unit_a', 2005, 2.5]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+        target_data = pd.DataFrame([
+            ['model_a', 'scen_a', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_a', 'region_c', 'variable_a', 'unit_a', 2005, 3.0]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+    
+        df = pyam.IamDataFrame(df_data)
+        target = pyam.IamDataFrame(target_data)
+    
+        result = broadcast_dims(df, target, ['region'])
+    
+        expected_data = pd.DataFrame([
+            ['model_a', 'scen_c', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_c', 'region_c', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_a', 'region_b', 'variable_a', 'unit_a', 2005, 2.5],
+            ['model_c', 'scen_a', 'region_c', 'variable_a', 'unit_a', 2005, 2.5]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+        expected = pyam.IamDataFrame(expected_data)
+    
+        self.assertTrue(result.equals(expected))
+    ###END def TestBroadcastDims.test_successful_broadcast
+
+    # Successfully broadcast dimensions when there are multiple dimensions in dims,
+    # and only a single coordinate value for each of those dimensions in `df`
+    def test_successful_broadcast_multiple_dims(self):
+        df_data = pd.DataFrame([
+            ['model_a', 'scen_a', 'region_a', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_a', 'region_a', 'variable_a', 'unit_a', 2005, 2.5]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+        target_data = pd.DataFrame([
+            ['model_a', 'scen_b', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_b', 'region_c', 'variable_a', 'unit_a', 2005, 3.0],
+            ['model_a', 'scen_c', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_c', 'region_c', 'variable_a', 'unit_a', 2005, 3.0]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+    
+        df = pyam.IamDataFrame(df_data)
+        target = pyam.IamDataFrame(target_data)
+    
+        result = broadcast_dims(df, target, ['region', 'scenario'])
+    
+        expected_data = pd.DataFrame([
+            ['model_a', 'scen_b', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_b', 'region_c', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_b', 'region_b', 'variable_a', 'unit_a', 2005, 2.5],
+            ['model_c', 'scen_b', 'region_c', 'variable_a', 'unit_a', 2005, 2.5],
+            ['model_a', 'scen_c', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_c', 'region_c', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_c', 'region_b', 'variable_a', 'unit_a', 2005, 2.5],
+            ['model_c', 'scen_c', 'region_c', 'variable_a', 'unit_a', 2005, 2.5]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+        expected = pyam.IamDataFrame(expected_data)
+    
+        self.assertTrue(result.equals(expected))
+    ###END def TestBroadcastDims.test_successful_broadcast
+
+    # Fail when `df` has multiple coordinate values for a dimension in dims
+    def test_fail_multiple_values(self):
+        df_data = pd.DataFrame([
+            ['model_a', 'scen_a', 'region_a', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_b', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_c', 'scen_a', 'region_a', 'variable_a', 'unit_a', 2005, 2.5]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+        target_data = pd.DataFrame([
+            ['model_a', 'scen_a', 'region_b', 'variable_a', 'unit_a', 2005, 1.0],
+            ['model_a', 'scen_a', 'region_c', 'variable_a', 'unit_a', 2005, 3.0]
+        ], columns=['model', 'scenario', 'region', 'variable', 'unit', 'year', 'value'])
+    
+        df = pyam.IamDataFrame(df_data)
+        target = pyam.IamDataFrame(target_data)
+    
+        with self.assertRaises(ValueError):
+            broadcast_dims(df, target, ['region'])
+        with self.assertRaises(ValueError):
+            broadcast_dims(df, target, ['scenario'])
+        with self.assertRaises(ValueError):
+            broadcast_dims(df, target, ['model'])
+        with self.assertRaises(ValueError):
+            broadcast_dims(df, target, ['model', 'variable'])
+
+
+###END class TestBroadcastDims

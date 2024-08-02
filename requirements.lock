@@ -17,6 +17,8 @@ anyio==4.3.0
     # via httpx
     # via starlette
     # via watchfiles
+attrs==23.2.0
+    # via pandas-indexing
 certifi==2024.2.2
     # via httpcore
     # via httpx
@@ -30,14 +32,14 @@ contourpy==1.2.1
     # via matplotlib
 cycler==0.12.1
     # via matplotlib
+deprecated==1.2.14
+    # via pandas-indexing
 dnspython==2.6.1
     # via email-validator
 email-validator==2.1.1
     # via fastapi
 et-xmlfile==1.1.0
     # via openpyxl
-exceptiongroup==1.2.1
-    # via anyio
 fastapi==0.111.0
     # via ixmp4
 fastapi-cli==0.0.4
@@ -113,11 +115,16 @@ packaging==24.0
     # via pandera
 pandas==2.2.2
     # via ixmp4
+    # via pandas-indexing
     # via pandera
     # via pyam-iamc
     # via seaborn
+pandas-indexing==0.5.1
+    # via iamcompact-vetting
 pandera==0.19.3
     # via ixmp4
+pathways-ensemble-analysis @ git+https://gitlab.com/climateanalytics/pathways-ensemble-analysis.git@22e1165cb1b1f3e2e9a14b783f91165700502adf
+    # via iamcompact-vetting
 pillow==10.3.0
     # via matplotlib
 pint==0.23
@@ -184,8 +191,6 @@ starlette==0.37.2
     # via fastapi
 toml==0.10.2
     # via ixmp4
-tomli==2.0.1
-    # via mypy
 typeguard==4.2.1
     # via pandera
 typer==0.12.3
@@ -193,7 +198,6 @@ typer==0.12.3
     # via ixmp4
 typing-extensions==4.11.0
     # via alembic
-    # via anyio
     # via fastapi
     # via mypy
     # via pint
@@ -204,7 +208,6 @@ typing-extensions==4.11.0
     # via typeguard
     # via typer
     # via typing-inspect
-    # via uvicorn
 typing-inspect==0.9.0
     # via pandera
 tzdata==2024.1
@@ -224,6 +227,7 @@ websockets==12.0
 wquantiles==0.6
     # via pyam-iamc
 wrapt==1.16.0
+    # via deprecated
     # via pandera
 xlsxwriter==3.2.0
     # via pyam-iamc
