@@ -115,9 +115,11 @@ class TestMakeConsistentUnits(unittest.TestCase):
         # the difference. This is just a check that the testing data itself is
         # not broken, not of the functionality we are trying to test.
         pd.testing.assert_series_equal(
-            diff_df._data.filter(model='ModelB'),
+            notnone(diff_df.filter(model='ModelB'))._data,
             notnone(to_be_matched_df.filter(model='ModelB'))._data \
-            - notnone(orig_df.rename(model={'Target Model': 'ModelB'}))._data
+                - notnone(orig_df.rename(model={'Target Model': 'ModelB'}))._data,
+            check_index=True,
+            check_like=True,
         )
         with self.assertRaises(ValueError):
             converted_df = make_consistent_units(
@@ -127,6 +129,40 @@ class TestMakeConsistentUnits(unittest.TestCase):
             )
     ###END def TestMakeConsistentUnits.test_non_uniform_models_failcase
 
+
+    def test_non_uniform_models_succeedcase(self):
+        """Test case where different models have different units.
+        
+        The "original" data here needs to be broadcast before matching units.
+        """
+        to_be_matched_df: pyam.IamDataFrame
+        orig_df: pyam.IamDataFrame
+        diff_df: pyam.IamDataFrame
+        converted_df: pyam.IamDataFrame
+        to_be_matched_df, orig_df, diff_df, _ = get_test_energy_iamdf_tuple()
+        # Manually broadcast `orig_df` to the two models in `to_be_matched_df`
+        orig_df_broadcast = pyam.concat(
+            [
+                orig_df.rename(model={'Target Model': 'ModelA'}),
+                orig_df.rename(model={'Target Model': 'ModelB'}),
+            ]
+        )
+        converted_df = make_consistent_units(
+            df=orig_df_broadcast,
+            match_df=to_be_matched_df,
+            match_dims = ('model', 'scenario', 'region'),
+        )
+        # Check that we get the expected results if we filter on ModelB and take
+        # the difference. This is just a check that the testing data itself is
+        # not broken, not of the functionality we are trying to test.
+        pd.testing.assert_series_equal(
+            diff_df._data,
+            to_be_matched_df._data - converted_df._data,
+            check_index=True,
+            check_like=True,
+            check_dtype=True,
+        )
+    ###END def TestMakeConsistentUnits.test_non_uniform_models_succeedcase
 
 ###END class TestMakeConsistentUnits
 
