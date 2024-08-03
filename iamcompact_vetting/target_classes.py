@@ -308,3 +308,6 @@ class CriterionTargetRange:
         if self.range is None:
             raise ValueError('`self.range` must be specified to use `in_range`.')
         return self.range[0] <= value <= self.range[1]
+    ###END def CriterionTargetRange.in_range
+
+###END class CriterionTargetRange
