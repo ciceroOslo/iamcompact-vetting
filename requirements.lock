@@ -96,6 +96,7 @@ numpy==1.26.4
     # via seaborn
     # via wquantiles
 openpyxl==3.1.5
+    # via iamcompact-vetting
     # via ixmp4
     # via pyam-iamc
 packaging==24.1

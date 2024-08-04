@@ -256,6 +256,7 @@ omegaconf==2.3.0
     # via dvc
     # via hydra-core
 openpyxl==3.1.5
+    # via iamcompact-vetting
     # via ixmp4
     # via pyam-iamc
 orjson==3.10.6
