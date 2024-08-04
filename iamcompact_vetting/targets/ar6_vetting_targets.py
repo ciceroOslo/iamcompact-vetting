@@ -186,3 +186,29 @@ vetting_criteria.append(
         unit="EJ / yr",
     )
 )
+
+drop_conditions_historical = {
+    # Historical emissions
+    "CO2 total (EIP + AFOLU) emissions 2020": {
+        "mode": "outside",
+        "value": [44251.0 * 0.6, 44251.0 * 1.4],
+    },
+    "CO2 EIP emissions 2020": {"mode": "outside", "value": [37646 * 0.8, 37646 * 1.2]},
+    "CH4 emissions 2020": {"mode": "outside", "value": [379 * 0.8, 379 * 1.2]},
+    "CO2 EIP emissions 2010-2020 change": {"mode": "outside", "value": [0, 0.5]},
+    "CCS from energy 2020": {"mode": ">=", "value": 250},
+    # Historical energy production
+    "Primary Energy 2020": {"mode": "outside", "value": [578 * 0.8, 578 * 1.2]},
+    "Electricity: nuclear 2020": {"mode": "outside", "value": [9.77 * 0.7, 9.77 * 1.3]},
+    "Electricity: solar and wind 2020": {
+        "mode": "outside",
+        "value": [8.51 * 0.5, 8.51 * 1.5],
+    },
+}
+
+drop_conditions_future = {
+    "CO2 EIP emissions 2030": {"mode": "<=", "value": 0},
+    "CCS from energy 2030": {"mode": ">=", "value": 2000},
+    "Electricity: nuclear 2030": {"mode": ">=", "value": 20},
+    "CH4 emissions 2040": {"mode": "outside", "value": [100,1000]},
+}
