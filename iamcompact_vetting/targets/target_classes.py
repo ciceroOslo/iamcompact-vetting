@@ -8,6 +8,48 @@ from pathways_ensemble_analysis.criteria.base import Criterion
 
 
 
+class RelativeRange(tuple[float, float]):
+    """Tuple subclass meant to be used for defining relative ranges.
+    
+    Instances must be initialized by passing in a lower and upper bound as two
+    floats or objects that can be converted to floats. Both will be passed to
+    `float()` internally.
+
+    To get a tuple with absolute values, use the `.get_absolute` method with
+    a reference value. If `upper` or `lower` cannot be converted to floats, the
+    error raised by `float()` will be raised.
+
+    Init Parameters
+    ----------
+    lower : float or str
+        Lower bound of the range.
+    upper : float str
+        Upper bound of the range.
+    """
+    def __new__(cls, lower: float|int|str, upper: float|int|str) -> tp.Self:
+        return super().__new__(cls, (float(lower), float(upper)))
+    ###END def RelativeRange.__new__
+
+    def get_absolute(self, reference: float) -> tuple[float, float]:
+        """Get a tuple with absolute values for the range.
+
+        Parameters
+        ----------
+        reference : float
+            Value to use as reference. The returned tuple will be
+            `(lower/reference, upper/reference)`.
+
+        Returns
+        -------
+        tuple[float, float]
+            Tuple with absolute values for the range.
+        """
+        return (self[0]/reference, self[1]/reference)
+    ###END def RelativeRange.get_absolute
+
+###END class RelativeRange
+
+
 class InvalidRangeError(ValueError):
     """Raised if the range does not contain the target value."""
     ...
@@ -29,10 +71,12 @@ class CriterionTargetRange:
         the target.
     target : float
         Target value for the criterion.
-    range : tuple[float, float], optional
+    range : tuple[float, float] or RelativeRange, optional
         Tuple with lower and upper limit for the criterion values. Optional,
         defaults to None. An `InvalidRangeError` will be raised if the range
-        does not contain the target value.
+        does not contain the target value. Alternatively, a `RelativeRange`
+        can be passed in instead of a tuple. It will be converted to a tuple of
+        absolute values by calling `range.get_absolute(target)`.
     unit : str, optional
         Unit of `target`. Optional, defaults to None.
     name : str, optional
@@ -84,7 +128,7 @@ class CriterionTargetRange:
             self,
             criterion: Criterion,
             target: float,
-            range: tp.Optional[tuple[float, float]] = None,
+            range: tp.Optional[tuple[float, float]|RelativeRange] = None,
             unit: tp.Optional[str] = None,
             name: tp.Optional[str] = None,
             convert_value_units: tp.Optional[bool] = None,
@@ -95,7 +139,10 @@ class CriterionTargetRange:
         self._criterion: Criterion = criterion
         self.name: str = criterion.criterion_name if name is None else name
         self.target = target
-        self.range = range
+        if isinstance(range, RelativeRange):
+            self.range = range.get_absolute(target)
+        else:
+            self.range = range
         _convert_value_units: bool
         if convert_value_units is not None:
             _convert_value_units = convert_value_units
