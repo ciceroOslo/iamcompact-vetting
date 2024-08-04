@@ -9,7 +9,10 @@ from pathways_ensemble_analysis.criteria.base import (
     ChangeOverTimeCriterion,
 )
 
-from .target_classes import CriterionTargetRange
+from .target_classes import (
+    CriterionTargetRange,
+    RelativeRange,
+)
 
 
 
@@ -19,7 +22,41 @@ from .target_classes import CriterionTargetRange
 
 vetting_criteria = []
 
-# Historical emissions
+# Historical emissions. The ranges given are the widest ranges given in Table 11
+# of AR6 WGIII Annex III
+# (https://www.ipcc.ch/report/ar6/wg3/downloads/report/IPCC_AR6_WGIII_Annex-III.pdf#page=43).
+# The vetting ranges for Illustrative Pathways is given in comments starting
+# with `# IP range:`.
+
+vetting_targets_historical: list[CriterionTargetRange] = [
+
+    CriterionTargetRange(
+        criterion= SingleVariableCriterion(
+            criterion_name='CO2 total (EIP + AFOLU) emissions 2020',
+            region='World',
+            year=2020,
+            variable='Emissions|CO2',
+            unit='Mt CO2 / yr',
+        ),
+        target=44251.0,
+        unit='Mt CO2 / yr',
+        range=RelativeRange(0.6, 1.4),  # IP range: +/- 20%
+    ),
+
+    CriterionTargetRange(
+        criterion= SingleVariableCriterion(
+            criterion_name='CO2 EIP emissions 2020',
+            region='World',
+            year=2020,
+            variable='Emissions|CO2|Energy and Industrial Processes',
+            unit='Mt CO2 / yr',
+        ),
+        target=37646,
+        unit='Mt CO2 / yr',
+        range=(37646 * 0.8, 37646 * 1.2),  # IP range: +/- 10%
+    ),
+
+]
 
 vetting_criteria.append(
     SingleVariableCriterion(
