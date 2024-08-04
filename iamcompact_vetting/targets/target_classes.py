@@ -139,10 +139,7 @@ class CriterionTargetRange:
         self._criterion: Criterion = criterion
         self.name: str = criterion.criterion_name if name is None else name
         self.target = target
-        if isinstance(range, RelativeRange):
-            self.range = range.get_absolute(target)
-        else:
-            self.range = range
+        self.range = range
         _convert_value_units: bool
         if convert_value_units is not None:
             _convert_value_units = convert_value_units
@@ -207,8 +204,10 @@ class CriterionTargetRange:
         """Tuple with lower and upper limit for the criterion values."""
         return self._range
     @range.setter
-    def range(self, value: tuple[float, float]|None):
+    def range(self, value: tuple[float, float]|RelativeRange|None):
         if value is not None:
+            if isinstance(value, RelativeRange):
+                value = value.get_absolute(self.target)
             if value[0] > value[1]:
                 raise ValueError('Lower bound of range must be less than '
                                  'upper bound.')
