@@ -34,3 +34,8 @@ iam_df: pyam.IamDataFrame = joint_iamdf
 # %%
 vetting_results: pd.DataFrame = \
     vetting_targets_historical[0].get_distances_in_range(iam_df)
+
+# %% [markdown]
+# # Get criterion values
+# %%
+criterion_values: pd.Series = vetting_targets_historical[0].get_values(iam_df)
