@@ -37,14 +37,14 @@ class RelativeRange(tuple[float, float]):
         ----------
         reference : float
             Value to use as reference. The returned tuple will be
-            `(lower/reference, upper/reference)`.
+            `(lower*reference, upper*reference)`.
 
         Returns
         -------
         tuple[float, float]
             Tuple with absolute values for the range.
         """
-        return (self[0]/reference, self[1]/reference)
+        return (self[0]*reference, self[1]*reference)
     ###END def RelativeRange.get_absolute
 
 ###END class RelativeRange
