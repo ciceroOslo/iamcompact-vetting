@@ -347,7 +347,7 @@ class CriterionTargetRange:
         self._check_unit_specs(convert_input_units=value)
         self._convert_input_units: bool = value
 
-    def in_range(self, value: float) -> bool:
+    def is_in_range(self, value: float) -> bool:
         """Checks whether a single number is in the target range.
         
         Only works on single numbers. Pass it to the pandas `apply` method if
@@ -359,5 +359,80 @@ class CriterionTargetRange:
             raise ValueError('`self.range` must be specified to use `in_range`.')
         return self.range[0] <= value <= self.range[1]
     ###END def CriterionTargetRange.in_range
+
+    def get_in_range(self, file: pyam.IamDataFrame) -> pd.Series[bool]:
+        """Get Series of bool for whether values of an IamDataFrame are in range
+        
+        The method returns a Series indexed by model/scenario values in the same
+        way as `criterion.get_values`, with a value of True if the value for a
+        given model/scenario is in the target range, and False otherwise.
+
+        Parameters
+        ----------
+        file : pyam.IamDataFrame
+            The IamDataFrame to check.
+
+        Returns
+        -------
+        pandas.Series
+            A Series with the same index as `criterion.get_values`, and a value
+            of True for values that are in the target range, and False for those
+            that are not.
+        """
+        values: pd.Series = self._criterion.get_values(file)
+        return values.apply(self.is_in_range)
+    ###END def CriterionTargetRange.get_in_range
+
+    def get_distances(self, file: pyam.IamDataFrame) -> pd.Series[float]:
+        """Get Series of distances between values of an IamDataFrame and the target value
+        
+        The method returns a Series indexed by model/scenario values in the same
+        way as `criterion.get_values`, with a value of the distance between the
+        value for a given model/scenario and the target value.
+
+        Parameters
+        ----------
+        file : pyam.IamDataFrame
+            The IamDataFrame to check.
+
+        Returns
+        -------
+        pandas.Series
+            A Series with the same index as `criterion.get_values`, and a value
+            for the distance between the value for a given model/scenario and
+            the target value.
+        """
+        values: pd.Series = self._criterion.get_values(file)
+        return values.apply(self.distance_func)
+    ###END def CriterionTargetRange.get_distances
+
+    def get_distances_in_range(self, file: pyam.IamDataFrame) -> pd.DataFrame:
+        """Get DataFrame of distances between values of an IamDataFrame and the target value
+        
+        The method returns a DataFrame indexed by model/scenario values in the same
+        way as `criterion.get_values`, with a column `distance` for the distance
+        values and a column `in_range` for whether each value is in the target
+        range or not.
+
+        Parameters
+        ----------
+        file : pyam.IamDataFrame
+            The IamDataFrame to check.
+
+        Returns
+        -------
+        pandas.DataFrame
+            A DataFrame with the same index as `criterion.get_values`, and a
+            column `distance` for the distance between the value for a given
+            model/scenario and the target value and a column `in_range` for
+            whether each value is in the target range or not.
+        """
+        distances = self.get_distances(file)
+        distances.name = 'distance'
+        in_range = self.get_in_range(file)
+        in_range.name = 'in_range'
+        return pd.concat([distances, in_range], axis=1)
+    ###END def CriterionTargetRange.get_distances_in_range
+
 
 ###END class CriterionTargetRange
