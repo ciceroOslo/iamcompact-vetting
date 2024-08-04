@@ -35,6 +35,8 @@ class CriterionTargetRange:
         does not contain the target value.
     unit : str, optional
         Unit of `target`. Optional, defaults to None.
+    name : str, optional
+        Name of the target. Optional, defaults to `criterion.criterion_name`.
     convert_value_units : bool, optional
         Whether to convert the criterion values returned by
         `criterion.get_values` to `unit`. If True, either `value_unit` must be
@@ -84,12 +86,14 @@ class CriterionTargetRange:
             target: float,
             range: tuple[float, float]|None = None,
             unit: str|None = None,
+            name: str|None = None,
             convert_value_units: bool|None = None,
             convert_input_units: bool = False,
             value_unit: str|None = None,
             distance_func: tp.Optional[Callable[[float], float]] = None,
     ):
         self._criterion: Criterion = criterion
+        self.name: str = criterion.criterion_name if name is None else name
         self.target = target
         self.range = range
         _convert_value_units: bool
