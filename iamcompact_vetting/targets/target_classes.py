@@ -360,7 +360,7 @@ class CriterionTargetRange:
         return self.range[0] <= value <= self.range[1]
     ###END def CriterionTargetRange.in_range
 
-    def get_in_range(self, file: pyam.IamDataFrame) -> pd.Series[bool]:
+    def get_in_range(self, file: pyam.IamDataFrame) -> pd.Series:
         """Get Series of bool for whether values of an IamDataFrame are in range
         
         The method returns a Series indexed by model/scenario values in the same
@@ -383,7 +383,7 @@ class CriterionTargetRange:
         return values.apply(self.is_in_range)
     ###END def CriterionTargetRange.get_in_range
 
-    def get_distances(self, file: pyam.IamDataFrame) -> pd.Series[float]:
+    def get_distances(self, file: pyam.IamDataFrame) -> pd.Series:
         """Get Series of distances between values of an IamDataFrame and the target value
         
         The method returns a Series indexed by model/scenario values in the same
