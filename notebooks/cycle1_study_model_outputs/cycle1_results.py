@@ -164,19 +164,19 @@ flat_data_dict_iamdfs: dict[str, pyam.IamDataFrame] = {
 # digit n) to the scenario name.
 all_iamdfs_list: list[pyam.IamDataFrame] = []
 _key: str
-_idf: pyam.IamDataFrame
+_iamdf: pyam.IamDataFrame
 _scenario: str
-for _key, _idf in flat_data_dict_iamdfs.items():
+for _key, _iamdf in flat_data_dict_iamdfs.items():
     if 'nolinksv1' in _key:
         continue
     _key_first3 = _key[:3]
-    _idf = notnone(
-        notnone(_idf).rename(
+    _iamdf = notnone(
+        notnone(_iamdf).rename(
             scenario={_scenario: f'{_scenario}_{_key_first3}'
-                    for _scenario in _idf.scenario}
+                    for _scenario in _iamdf.scenario}
         )
     )
-    all_iamdfs_list.append(_idf)
+    all_iamdfs_list.append(_iamdf)
 
 # %%
 # Now join all the DataFrames. Do it one by one in order to track down where any
