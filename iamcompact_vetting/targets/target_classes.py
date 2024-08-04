@@ -84,12 +84,12 @@ class CriterionTargetRange:
             self,
             criterion: Criterion,
             target: float,
-            range: tuple[float, float]|None = None,
-            unit: str|None = None,
-            name: str|None = None,
-            convert_value_units: bool|None = None,
+            range: tp.Optional[tuple[float, float]] = None,
+            unit: tp.Optional[str] = None,
+            name: tp.Optional[str] = None,
+            convert_value_units: tp.Optional[bool] = None,
             convert_input_units: bool = False,
-            value_unit: str|None = None,
+            value_unit: tp.Optional[str] = None,
             distance_func: tp.Optional[Callable[[float], float]] = None,
     ):
         self._criterion: Criterion = criterion
