@@ -8,6 +8,7 @@ import pickle
 import hashlib
 
 import pyam
+import pandas as pd
 try:
     import openpyxl
 except ModuleNotFoundError:
@@ -17,6 +18,18 @@ except ModuleNotFoundError:
     )
 
 
+
+# %%
+# Define a utility function that takes a variable of type T|None for some type
+# T and returns either the value of the variable if it is of type T or raises
+# a ValueError if the variable is None (i.e., the function is guaranteed to have
+# return type T)
+TV = tp.TypeVar('TV')
+def notnone(x: TV|None) -> TV:
+    if x is None:
+        raise ValueError('Value is None')
+    return x
+###END def notnone
 
 # %%
 # Create a helper function that takes a function as an argument, and returns
@@ -142,3 +155,53 @@ flat_data_dict_iamdfs: dict[str, pyam.IamDataFrame] = {
     _relpath: _idf for _relpath, _idf in flat_data_dict.items()
     if isinstance(_idf, pyam.IamDataFrame)
 }
+
+# %%
+# Try to make a joint IamDataFrame by concatenating all the IamDataFrames from
+# `flat_data_dict_iamdfs` except the ones for which they key contains 
+# `'nolinksv1'`, but first rename the scenarios in each IamDataFrame by
+# appending the first three characters of the key (of the form 'S0n' for some
+# digit n) to the scenario name.
+all_iamdfs_list: list[pyam.IamDataFrame] = []
+_key: str
+_idf: pyam.IamDataFrame
+_scenario: str
+for _key, _idf in flat_data_dict_iamdfs.items():
+    if 'nolinksv1' in _key:
+        continue
+    _key_first3 = _key[:3]
+    _idf = notnone(
+        notnone(_idf).rename(
+            scenario={_scenario: f'{_scenario}_{_key_first3}'
+                    for _scenario in _idf.scenario}
+        )
+    )
+    all_iamdfs_list.append(_idf)
+
+# %%
+# Now join all the DataFrames. Do it one by one in order to track down where any
+# errors occur. CHANGE: Commenting out the code that does it one by one, and
+# and instead concatenating all at once, which hopefully will be more
+# performant.
+def _remove_unnamed0_col(iamdf: pyam.IamDataFrame) -> pyam.IamDataFrame:
+    if len(iamdf.extra_cols) > 0:
+        if len(iamdf.extra_cols) > 1 or iamdf.extra_cols[0] != 'unnamed: 0':
+            raise ValueError(
+                'An IamDataFrame contains an unexpected extra index column.'
+            )
+            # Remove the extra column
+        iamdf_orig: pyam.IamDataFrame = iamdf
+        iamdf = pyam.IamDataFrame(iamdf._data.droplevel('unnamed: 0'))
+    return iamdf
+
+# joint_iamdf: pyam.IamDataFrame = _remove_unnamed0_col(all_iamdfs_list[0])
+# for _iamdf in all_iamdfs_list[1:]:
+#     _iamdf_orig: pyam.IamDataFrame = _iamdf
+#     _iamdf = _remove_unnamed0_col(_iamdf)
+#     joint_iamdf = notnone(joint_iamdf.append(_iamdf))
+
+joint_iamdf: pyam.IamDataFrame = pyam.concat(
+    [
+        _remove_unnamed0_col(_iamdf) for _iamdf in all_iamdfs_list
+    ]
+)
