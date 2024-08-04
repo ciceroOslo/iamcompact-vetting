@@ -176,7 +176,7 @@ class CriterionTargetRange:
         if value > target:
             return (value - target) / (range[1] - target)
         else:
-            return (target - value) / (target - range[0])
+            return (value - target) / (target - range[0])
     ###END def CriterionTargetRange._distance_func_with_range
 
     def _default_distance_func(self, value: float) -> float:
@@ -433,6 +433,22 @@ class CriterionTargetRange:
         in_range.name = 'in_range'
         return pd.concat([distances, in_range], axis=1)
     ###END def CriterionTargetRange.get_distances_in_range
+
+    def get_values(self, file: pyam.IamDataFrame) -> pd.Series:
+        """Call `self.criterion.get_values` on an IamDataFrame.
+        
+        Parameters
+        ----------
+        file : pyam.IamDataFrame
+            The IamDataFrame to check.
+
+        Returns
+        -------
+        pandas.Series
+            The Series returned by the `.get_values` method of `self.criterion`.
+        """
+        return self._criterion.get_values(file)
+    ###END def CriterionTargetRange.get_values
 
 
 ###END class CriterionTargetRange
