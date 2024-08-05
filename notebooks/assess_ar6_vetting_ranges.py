@@ -77,3 +77,6 @@ criterion_values: list[pd.Series] = [
 # %%
 vetting_results_df: pd.DataFrame = pd.concat( vetting_results, axis="index") \
     .unstack("variable")  # pyright: ignore[reportAssignmentType]
+
+criterion_values_df: pd.DataFrame = pd.concat( criterion_values, axis="index") \
+    .unstack("variable")  # pyright: ignore[reportAssignmentType]

@@ -51,9 +51,34 @@ vetting_targets_historical: list[CriterionTargetRange] = [
             variable='Emissions|CO2|Energy and Industrial Processes',
             unit='Mt CO2 / yr',
         ),
-        target=37646,
+        target=37646.0,
         unit='Mt CO2 / yr',
-        range=(37646 * 0.8, 37646 * 1.2),  # IP range: +/- 10%
+        range=RelativeRange(0.8, 1.2),  # IP range: +/- 10%
+    ),
+
+    CriterionTargetRange(
+        criterion= SingleVariableCriterion(
+            criterion_name='CH4 emissions 2020',
+            region='World',
+            year=2020,
+            variable='Emissions|CH4',
+            unit='Mt CH4 / yr',
+        ),
+        target=379.0,
+        unit='Mt CH4 / yr',
+        range=RelativeRange(0.8, 1.2),  # IP range: +/- 20%
+    ),
+
+    CriterionTargetRange(
+        criterion= ChangeOverTimeCriterion(
+            criterion_name='CO2 EIP emissions 2010-2020 change',
+            region='World',
+            year=2020,
+            reference_year=2010,
+            variable='Emissions|CO2|Energy and Industrial Processes',
+        ),
+        target=1.25,
+        range=(1.0, 1.5),
     ),
 
 ]
