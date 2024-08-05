@@ -31,7 +31,7 @@ vetting_criteria = []
 vetting_targets_historical: list[CriterionTargetRange] = [
 
     CriterionTargetRange(
-        criterion= SingleVariableCriterion(
+        criterion=SingleVariableCriterion(
             criterion_name='CO2 total (EIP + AFOLU) emissions 2020',
             region='World',
             year=2020,
@@ -44,7 +44,7 @@ vetting_targets_historical: list[CriterionTargetRange] = [
     ),
 
     CriterionTargetRange(
-        criterion= SingleVariableCriterion(
+        criterion=SingleVariableCriterion(
             criterion_name='CO2 EIP emissions 2020',
             region='World',
             year=2020,
@@ -57,7 +57,7 @@ vetting_targets_historical: list[CriterionTargetRange] = [
     ),
 
     CriterionTargetRange(
-        criterion= SingleVariableCriterion(
+        criterion=SingleVariableCriterion(
             criterion_name='CH4 emissions 2020',
             region='World',
             year=2020,
@@ -70,7 +70,7 @@ vetting_targets_historical: list[CriterionTargetRange] = [
     ),
 
     CriterionTargetRange(
-        criterion= ChangeOverTimeCriterion(
+        criterion=ChangeOverTimeCriterion(
             criterion_name='CO2 EIP emissions 2010-2020 change',
             region='World',
             year=2020,
