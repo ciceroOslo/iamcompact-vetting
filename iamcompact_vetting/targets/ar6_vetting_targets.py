@@ -77,8 +77,8 @@ vetting_targets_historical: list[CriterionTargetRange] = [
             reference_year=2010,
             variable='Emissions|CO2|Energy and Industrial Processes',
         ),
-        target=1.25,
-        range=(1.0, 1.5),
+        target=0.25,
+        range=(0.0, 0.5),
     ),
 
 ]
