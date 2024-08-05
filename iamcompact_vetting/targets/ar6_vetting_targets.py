@@ -95,6 +95,45 @@ vetting_targets_historical: list[CriterionTargetRange] = [
         distance_func=lambda x: x/250.0,  # Use this to avoid division by zero in the defult function.
     ),
 
+    CriterionTargetRange(
+        criterion=SingleVariableCriterion(
+            criterion_name="Primary Energy 2020",
+            region="World",
+            year=2020,
+            variable="Primary Energy",
+            unit="EJ / yr",
+        ),
+        target=578.0,
+        unit='EJ / yr',
+        range=RelativeRange(0.8, 1.2),  # IP range: +/- 10%
+    ),
+
+    CriterionTargetRange(
+        criterion=SingleVariableCriterion(
+            criterion_name="Electricity: nuclear 2020",
+            region="World",
+            year=2020,
+            variable="Secondary Energy|Electricity|Nuclear",
+            unit="EJ / yr",
+        ),
+        target=9.77,
+        unit='EJ / yr',
+        range=RelativeRange(0.7, 1.3),  # IP range: +/- 20%
+    ),
+
+    CriterionTargetRange(
+        SingleVariableCriterion(
+            criterion_name="Electricity: solar and wind 2020",
+            region="World",
+            year=2020,
+            variable="Secondary Energy|Electricity|Wind and Solar",
+            unit="EJ / yr",
+        ),
+        target=8.51,
+        unit='EJ / yr',
+        range=RelativeRange(0.5, 1.5),  # IP range: +/- 25%
+    ),
+
 ]
 
 vetting_criteria.append(
