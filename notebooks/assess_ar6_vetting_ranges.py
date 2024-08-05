@@ -50,6 +50,31 @@ iam_df = iam_df.rename(
     unit={"MtCO2/yr": "Mt CO2/yr"}
 )  # pyright: ignore[reportAssignmentType]
 
+# %% [markdown]
+# ### Replace `Carbon Capture` with `Carbon Sequestration|CCS` for PROMETHEUS
+#
+# The PROMETHEUS model uses `Carbon Capture` instead of the name
+# `Carbon Sequestration|CCS` used by the `pathways-ensemble-analysis` package
+# and the AR6 models. Rename it here to make sure that we can use
+# `SingleVariableCriterion` for the "CCS from energy" vetting criterion.
+# %%
+prometheus_CCS_df: pyam.IamDataFrame = iam_df.filter(
+    model='PROMETHEUS V1', variable='Carbon Capture*',  # pyright: ignore[reportAssignmentType]
+)
+other_df: pyam.IamDataFrame = iam_df.filter(
+    model='PROMETHEUS V1', variable='Carbon Capture*', keep=False,  # pyright: ignore[reportAssignmentType]
+)
+prometheus_rename_dict: dict[str, str] = {
+    _varname: _varname.replace("Carbon Capture", "Carbon Sequestration|CCS")
+    for _varname in prometheus_CCS_df.variable  # pyright: ignore[reportAssignmentType]
+}
+prometheus_CCS_df = prometheus_CCS_df.rename(
+    variable=prometheus_rename_dict
+)  # pyright: ignore[reportAssignmentType]
+iam_df = pyam.concat([other_df, prometheus_CCS_df])
+
+if len(iam_df.filter(variable='Carbon Capture*').variable) > 0:
+    raise RuntimeError('Unexpected `Carbon Capture` variables remaining.')
 
 # %%[markdown]
 # # Assess the AR6 vetting ranges

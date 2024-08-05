@@ -81,6 +81,20 @@ vetting_targets_historical: list[CriterionTargetRange] = [
         range=(0.0, 0.5),
     ),
 
+    CriterionTargetRange(
+        criterion=SingleVariableCriterion(
+            criterion_name='CCS from energy 2020',
+            region='World',
+            year=2020,
+            variable='Carbon Sequestration|CCS',   # Should be energy-only, but hard to find a variable that captures that consistently across all models. Total CCS in any case gives an upper bound, so scenarios that satisfy this criterion will also satisfy the actual AR6 criterion.
+            unit='Mt CO2 / yr',
+        ),
+        target=0.0,
+        unit='Mt CO2 / yr',
+        range=(0.0, 250.0),  # IP range: 0-100 Mt CO2 / yr
+        distance_func=lambda x: x/250.0,  # Use this to avoid division by zero in the defult function.
+    ),
+
 ]
 
 vetting_criteria.append(
