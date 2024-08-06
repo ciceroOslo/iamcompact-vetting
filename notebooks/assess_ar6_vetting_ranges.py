@@ -127,10 +127,42 @@ criterion_values: list[pd.Series] = [
 ]
 
 # %% [markdown]
-# Then combine the results into one DataFrame.
+# Then combine the results into single DataFrame/Series.
+#
+# `vetting_results_df` will be a DataFrame with a column `distance` for the
+# distance between the value for a given model/scenario and the target value
+# (in most cases `0` when the value is equal to the target, `+1.0` if it is at
+# the upper limit of the range, and `-1.0` if it is at the lower limit), and
+# a column `in_range` for whether each value is in the target range or not.
+#
+# `criterion_values_series` will be a Series with the same index as
+# `vetting_results_df`, and the values will be the criterion values for each
+# model/scenario.
 # %%
-vetting_results_df: pd.DataFrame = pd.concat( vetting_results, axis="index") \
-    .unstack("variable")  # pyright: ignore[reportAssignmentType]
+vetting_results_df: pd.DataFrame = pd.concat(vetting_results, axis="index")
 
-criterion_values_df: pd.DataFrame = pd.concat( criterion_values, axis="index") \
-    .unstack("variable")  # pyright: ignore[reportAssignmentType]
+criterion_values_series: pd.Series = pd.concat(criterion_values, axis="index")
+
+# %% [markdown]
+# Then turn `vetting_results_df` and `criterion_values_series` into DataFrames
+# with one column for each vetting criterion, to make it easier to read.
+#
+# `vetting_results_df` will be split into two DataFrames,
+# `vetting_results_in_range_df` and `vetting_results_distance_df`, one for each
+# column in `vetting_results_df`.
+# %%
+vetting_results_in_range_df: pd.DataFrame = pd.DataFrame(
+    data={
+        _target_name: vetting_results_df["in_range"] \
+            .xs(_target_name, level='variable')
+        for _target_name in vetting_results_df.index.unique(level='variable')
+    }
+)
+
+vetting_results_distance_df: pd.DataFrame = pd.DataFrame(
+    data={
+        _target_name: vetting_results_df["distance"] \
+            .xs(_target_name, level='variable')
+        for _target_name in vetting_results_df.index.unique(level='variable')
+    }
+)
