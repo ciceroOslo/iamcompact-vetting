@@ -10,6 +10,8 @@ import pandas as pd
 
 from iamcompact_vetting.targets.ar6_vetting_targets import (
     vetting_targets_historical,
+    vetting_targets_future,
+    vetting_targets
 )
 from iamcompact_vetting.targets.target_classes import(
     CriterionTargetRange,
@@ -118,12 +120,12 @@ _crit_target: CriterionTargetRange
 
 vetting_results: list[pd.DataFrame] = [
     _crit_target.get_distances_in_range(iam_df)
-    for _crit_target in vetting_targets_historical
+    for _crit_target in vetting_targets
 ]
 
 criterion_values: list[pd.Series] = [
     _crit_target.get_values(iam_df)
-    for _crit_target in vetting_targets_historical
+    for _crit_target in vetting_targets
 ]
 
 # %% [markdown]

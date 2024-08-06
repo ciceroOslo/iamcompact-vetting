@@ -3,6 +3,9 @@
 Credit: The Criterion objects used here are originally taken from example
 notebooks in the `pathways_ensemble_analysis` package repository.
 """
+import pandas as pd
+import numpy as np
+
 from pathways_ensemble_analysis.criteria.base import (
     Criterion,
     SingleVariableCriterion,
@@ -135,6 +138,29 @@ vetting_targets_historical: list[CriterionTargetRange] = [
     ),
 
 ]
+
+vetting_targets_future: list[CriterionTargetRange] = [
+
+    CriterionTargetRange(
+        criterion=SingleVariableCriterion(
+            criterion_name="CO2 EIP emissions 2030",
+            region="World",
+            year=2030,
+            variable="Emissions|CO2|Energy and Industrial Processes",
+            unit="Mt CO2 / yr",
+        ),
+        target=44251.0,
+        unit='Mt CO2 / yr',
+        range=(0.0, np.inf),  # The way the distance function is defined, -1 is
+                            # 0 emissions in 2030 (the actual vetting bound),
+                            # while +1 is infinite emissions.
+    ),
+
+]
+
+
+vetting_targets: list[CriterionTargetRange] = vetting_targets_historical \
+    + vetting_targets_future
 
 vetting_criteria.append(
     SingleVariableCriterion(
