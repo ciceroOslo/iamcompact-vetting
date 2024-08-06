@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 import pyam
 import pandas as pd
+from pandas.api.typing import NAType
 import numpy as np
 from pathways_ensemble_analysis.criteria.base import Criterion
 
@@ -350,7 +351,7 @@ class CriterionTargetRange:
         self._check_unit_specs(convert_input_units=value)
         self._convert_input_units: bool = value
 
-    def is_in_range(self, value: float) -> bool:
+    def is_in_range(self, value: float) -> bool|NAType:
         """Checks whether a single number is in the target range.
         
         Only works on single numbers. Pass it to the pandas `apply` method if
@@ -358,6 +359,8 @@ class CriterionTargetRange:
 
         Raises a `ValueError` if `self.range` is not specified.
         """
+        if pd.isna(value):
+            return pd.NA
         if self.range is None:
             raise ValueError('`self.range` must be specified to use `in_range`.')
         return self.range[0] <= value <= self.range[1]
