@@ -166,3 +166,11 @@ vetting_results_distance_df: pd.DataFrame = pd.DataFrame(
         for _target_name in vetting_results_df.index.unique(level='variable')
     }
 )
+
+criterion_values_df: pd.DataFrame = pd.DataFrame(
+    data={
+        _target_name: criterion_values_series \
+            .xs(_target_name, level='variable')
+        for _target_name in criterion_values_series.index.unique(level='variable')
+    }
+)
