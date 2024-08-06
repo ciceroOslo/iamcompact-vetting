@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 import pyam
 import pandas as pd
+import numpy as np
 from pathways_ensemble_analysis.criteria.base import Criterion
 
 
@@ -180,6 +181,8 @@ class CriterionTargetRange:
     ###END def CriterionTargetRange._distance_func_with_range
 
     def _default_distance_func(self, value: float) -> float:
+        if pd.isna(value):
+            return np.nan
         if self.range is None:
             return self._distance_func_without_range(value, self.target)
         else:
