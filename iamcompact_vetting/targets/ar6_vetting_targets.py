@@ -1,8 +1,15 @@
 """Vetting criteria and targets/ranges for IPCC AR6.
 
+The full list of `CriterionTargetRange` objects for each of the AR6 vetting
+criteria is given in the `vetting_targets` variable. Objects for the historical
+and future criteria alone are given in the `vetting_targets_historical` and
+`vetting_targets_future` variables, respectively.
+
 Credit: The Criterion objects used here are originally taken from example
 notebooks in the `pathways_ensemble_analysis` package repository.
 """
+import typing as tp
+
 import pandas as pd
 import numpy as np
 
@@ -18,12 +25,6 @@ from .target_classes import (
 )
 
 
-
-# Temporarily define all the Criterion objets as part of a `vetting_criteria`
-# list. This should be refactored into a list of `CriterionTargetRange` objects
-# afterwards.
-
-vetting_criteria = []
 
 # Historical emissions. The ranges given are the widest ranges given in Table 11
 # of AR6 WGIII Annex III
@@ -156,179 +157,201 @@ vetting_targets_future: list[CriterionTargetRange] = [
                             # while +1 is infinite emissions.
     ),
 
+    CriterionTargetRange(
+        criterion=SingleVariableCriterion(
+            criterion_name="CCS from energy 2030",
+            region="World",
+            year=2030,
+            variable="Carbon Sequestration|CCS",  # Same comment about the
+                                                  # variable name here as for
+                                                  # the criterion named
+                                                  # 'CCS from energy 2020'
+            unit="Mt CO2 / yr",
+        ),
+        target=0.0,
+        unit='Mt CO2 / yr',
+        range=(0.0, 2000.0)
+    ),
+
+    CriterionTargetRange(
+        criterion=SingleVariableCriterion(
+            criterion_name="Electricity: nuclear 2030",
+            region="World",
+            year=2030,
+            variable="Secondary Energy|Electricity|Nuclear",
+            unit="EJ / yr",
+        ),
+        target=0.0,
+        unit='EJ / yr',
+        range=(0.0, 20.0),
+    ),
+
+    CriterionTargetRange(
+        criterion=SingleVariableCriterion(
+            criterion_name="CH4 emissions 2040",
+            region="World",
+            year=2040,
+            variable="Emissions|CH4",
+            unit="Mt CH4 / yr",
+        ),
+        target=100.0*np.sqrt(1000.0/100.0),
+        unit='Mt CH4 / yr',
+        range=(100.0, 1000.0),
+    ),
+
 ]
 
 
 vetting_targets: list[CriterionTargetRange] = vetting_targets_historical \
     + vetting_targets_future
 
-vetting_criteria.append(
+
+# For reference, below are the Criterion objects and drop condition
+# specifications used in the AR6 assessment notebook from the
+# `pathways-ensemble-analysis` repository.
+
+_pea_vetting_criteria: list[Criterion] = [
+
+    # Historical emissions and CCS
+
     SingleVariableCriterion(
         criterion_name="CO2 total (EIP + AFOLU) emissions 2020",
         region="World",
         year=2020,
         variable="Emissions|CO2",
         unit="Mt CO2 / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="CO2 EIP emissions 2020",
         region="World",
         year=2020,
         variable="Emissions|CO2|Energy and Industrial Processes",
         unit="Mt CO2 / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="CH4 emissions 2020",
         region="World",
         year=2020,
         variable="Emissions|CH4",
         unit="Mt CH4 / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     ChangeOverTimeCriterion(
         criterion_name="CO2 EIP emissions 2010-2020 change",
         region="World",
         year=2020,
         reference_year=2010,
         variable="Emissions|CO2|Energy and Industrial Processes",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="CCS from energy 2020",
         region="World",
         year=2020,
         variable="Carbon Sequestration|CCS|Energy",
         unit="Mt CO2 / yr",
-    )
-)
+    ),
 
-# Historical energy production
+    # Historical energy production
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="Primary Energy 2020",
         region="World",
         year=2020,
         variable="Primary Energy",
         unit="EJ / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="Electricity: nuclear 2020",
         region="World",
         year=2020,
         variable="Secondary Energy|Electricity|Nuclear",
         unit="EJ / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="Electricity: solar and wind 2020",
         region="World",
         year=2020,
         variable="Secondary Energy|Electricity|Wind and Solar",
         unit="EJ / yr",
-    )
-)
+    ),
 
-# Future criteria
+    # Future criteria
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="CO2 EIP emissions 2030",
         region="World",
         year=2030,
         variable="Emissions|CO2|Energy and Industrial Processes",
         unit="Mt CO2 / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="CCS from energy 2030",
         region="World",
         year=2030,
         variable="Carbon Sequestration|CCS|Energy",
         unit="Mt CO2 / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="Electricity: nuclear 2030",
         region="World",
         year=2030,
         variable="Secondary Energy|Electricity|Nuclear",
         unit="EJ / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="CH4 emissions 2040",
         region="World",
         year=2040,
         variable="Emissions|CH4",
         unit="Mt CH4 / yr",
-    )
-)
+    ),
 
-# Additionally defined criteria (which are not investigated in the AR6 vetting process
+    # Additionally defined criteria (which are not investigated in the AR6
+    # vetting process)
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="CO2 EIP emissions 2050",
         region="World",
         year=2050,
         variable="Emissions|CO2|Energy and Industrial Processes",
         unit="Mt CO2 / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="CCS from energy 2050",
         region="World",
         year=2050,
         variable="Carbon Sequestration|CCS|Energy",
         unit="Mt CO2 / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="Electricity: nuclear 2050",
         region="World",
         year=2050,
         variable="Secondary Energy|Electricity|Nuclear",
         unit="EJ / yr",
-    )
-)
+    ),
 
-vetting_criteria.append(
     SingleVariableCriterion(
         criterion_name="Electricity: solar and wind 2050",
         region="World",
         year=2050,
         variable="Secondary Energy|Electricity|Wind and Solar",
         unit="EJ / yr",
-    )
-)
+    ),
 
-drop_conditions_historical = {
+]
+
+_pea_drop_conditions_historical: dict[str, dict[str, tp.Any]] = {
     # Historical emissions
     "CO2 total (EIP + AFOLU) emissions 2020": {
         "mode": "outside",
@@ -347,7 +370,7 @@ drop_conditions_historical = {
     },
 }
 
-drop_conditions_future = {
+_pea_drop_conditions_future: dict[str, dict[str, tp.Any]] = {
     "CO2 EIP emissions 2030": {"mode": "<=", "value": 0},
     "CCS from energy 2030": {"mode": ">=", "value": 2000},
     "Electricity: nuclear 2030": {"mode": ">=", "value": 20},
