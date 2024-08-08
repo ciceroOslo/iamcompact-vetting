@@ -206,8 +206,8 @@ class TimeseriesRefCriterion(Criterion):
         `('model', 'scenario')`.
     rating_function : callable, optional
         The function to use to rate the comparison values. This function should
-        take a `pandas.Series` and return a single value. Optional, defaults to
-        absolute max.
+        take and return single numbers. Optional, by default equals the identity
+        function.
     dim_names : dim.IamDimNames, optional
         The dimension names of the reference `IamDataFrame`s used for reference
         and to be vetted. Optional, defaults to `dims.DIM`
@@ -254,8 +254,7 @@ class TimeseriesRefCriterion(Criterion):
             time_agg: AggFuncArg,
             agg_dim_order: AggDimOrder | str = AggDimOrder.REGION_FIRST,
             broadcast_dims: Iterable[str] = ('model', 'scenario'),
-            rating_function: Callable[[pd.Series], pd.Series] = \
-                lambda s: s.abs().max(),
+            rating_function: Callable[[float], float] = lambda x: x,
             dim_names: IamDimNames = DIM,
             *args,
             **kwargs,
@@ -275,7 +274,6 @@ class TimeseriesRefCriterion(Criterion):
                                             'of `reference.dimensions`')
         self.dim_names: IamDimNames = dim_names
         self.broadcast_dims: list[str] = list(broadcast_dims)
-        self.rating_function = rating_function
         super().__init__(
             criterion_name=criterion_name,
             region='*',
