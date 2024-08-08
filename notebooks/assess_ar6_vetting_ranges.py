@@ -4,6 +4,7 @@
 # # Imports
 # %%
 from pathlib import Path
+import re
 
 import pyam
 import pandas as pd
@@ -106,6 +107,29 @@ iam_df = pyam.concat(
         )
     ]
 )  # pyright: ignore[reportAssignmentType]
+
+# %% [markdown]
+# # Correct GDP unit names
+#
+# GDP variables in the 1st modelling cycle data from some models used currency
+# unit and base-year designations that are now considered non-standard, such
+# as "$US" or "US$" instead of "USD", putting the base year directly after the
+# currency unit rather than separating them by an underscore, and "Billion" with
+# a capital "B" instead of "billion". The current, correct convention for IAMC
+# formatted files is to use, e.g., "USD_2010" or "USD_2017" for 2010 and 2017
+# US dollars.
+
+
+def _replace_usd_unit_name(s: str) -> str:
+    usd_unit_name_pattern = re.compile(r"(?:US\$|\$US)\s*(\d{4})")
+    return usd_unit_name_pattern.sub(r"USD_\1", s)
+
+iam_df = iam_df.rename(
+    unit={
+        _unit: _replace_usd_unit_name(_unit).replace("Billion", "billion")
+        for _unit in iam_df.filter(variable='*GDP*').unit
+    }
+)  # pyright: ignore[reportAssignmentType, reportOptionalMemberAccess]
 
 # %%[markdown]
 # # Assess the AR6 vetting ranges
