@@ -109,7 +109,7 @@ iam_df = pyam.concat(
 )  # pyright: ignore[reportAssignmentType]
 
 # %% [markdown]
-# # Correct GDP unit names
+# # Correct GDP and population unit names
 #
 # GDP variables in the 1st modelling cycle data from some models used currency
 # unit and base-year designations that are now considered non-standard, such
@@ -118,6 +118,9 @@ iam_df = pyam.concat(
 # a capital "B" instead of "billion". The current, correct convention for IAMC
 # formatted files is to use, e.g., "USD_2010" or "USD_2017" for 2010 and 2017
 # US dollars.
+#
+# For population, some models used "millions" plural instead of "million", which
+# also needs to be corrected.
 
 
 def _replace_usd_unit_name(s: str) -> str:
@@ -128,7 +131,9 @@ iam_df = iam_df.rename(
     unit={
         _unit: _replace_usd_unit_name(_unit).replace("Billion", "billion")
         for _unit in iam_df.filter(variable='*GDP*').unit
-    }
+    } | {
+        'millions': 'million'
+    },
 )  # pyright: ignore[reportAssignmentType, reportOptionalMemberAccess]
 
 # %%[markdown]
