@@ -14,6 +14,9 @@ from iamcompact_vetting.targets.ar6_vetting_targets import (
     vetting_targets_future,
     vetting_targets
 )
+from iamcompact_vetting.targets.iamcompact_harmonization_targets import(
+    gdp_pop_harmonization_criterion
+)
 from iamcompact_vetting.targets.target_classes import(
     CriterionTargetRange,
 )
@@ -205,3 +208,22 @@ criterion_values_df: pd.DataFrame = pd.DataFrame(
         for _target_name in criterion_values_series.index.unique(level='variable')
     }
 )
+
+
+# %% [markdown]
+# # Assess compliance with harmonisation data for population and GDP.
+#
+# *NB!* The current code below is just a test at the moment. First get a
+# `TimeseriesRefCriterion` with the population and GDP data from harmonization,
+# to test whether it works with the model data.
+# assessment_values: pd.Series = \
+#     gdp_pop_harmonization_criterion.get_values(
+#         iam_df
+#     )
+# %%
+iam_df_pop_gdp = iam_df.filter(variable=['Population', 'GDP|PPP'])
+assessment_values: pd.Series = \
+    gdp_pop_harmonization_criterion.get_values(iam_df_pop_gdp)
+assessment_full_comparison: pd.Series = \
+    gdp_pop_harmonization_criterion.compare(iam_df_pop_gdp) \
+        .reindex_like(iam_df_pop_gdp._data)
