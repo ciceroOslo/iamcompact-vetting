@@ -433,3 +433,96 @@ def pyam_series_comparison(
         return decorator
     return decorator(func)
 ###END def pyam_series_comparison
+
+
+def get_diff_comparison(
+        absolute: bool = False,
+        match_units: tp.Optional[bool] = None,
+) -> Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]:
+    """Get comparison function for difference between reference and data 
+
+    Parameters
+    ----------
+    absolute : bool, optional
+        Whether to return the absolute difference rather than the signed
+        difference. If False, negative numbers denote that the reference is
+        greater than the data. Optional, by default False.
+    match_units : bool or None, optional
+        Whether to ensure that the units of the reference and data are
+        consistent. If None, the default of the `pyam_series_comparison`
+        function decorator will be used. Optional, by default None.
+
+    Returns
+    -------
+    Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]
+        The comparison function.
+    """
+    diff_func: Callable[[pd.Series, pd.Series], pd.Series] = \
+        (lambda _ref, _data: _data - _ref) if not absolute \
+            else (lambda _ref, _data: (_data - _ref).abs())
+    if match_units is None:
+        return pyam_series_comparison(diff_func)
+    else:
+        return pyam_series_comparison(diff_func, match_units=match_units)
+###END def get_diff_comparison
+
+def get_ratio_comparison(
+        div_by_zero_value: tp.Optional[float] = None,
+        zero_by_zero_value: tp.Optional[float] = None,
+        match_units: tp.Optional[bool] = None,
+) -> Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]:
+    """Get comparison function for ratio between reference and data.
+
+    The returned function divides the data by the reference, i.e., gives 1.0
+    where they are equal, less than 1.0 where the reference is greater than the
+    data, and greater than 1.0 where the reference is less than the data.
+    Subtract 1 and multiply by 100 to get the percentage difference.
+
+    The function allows the user to specify how division by zero should be
+    handled, i.e., in the case that a reference data point is zero, both in the
+    case that the input data point (the numerator) is itself zero and in the
+    case that it is non-zero, through the parameters `div_by_zero_value` and
+    `zero_by_zero_value`, respectively. If a number is specified for these
+    parameters, that number will be used in all cases of the corresponding type
+    of zero-division. If they are None, the function will use whichever value
+    is returned by `pandas` when dividing one `Series` by another that contains
+    zero values.
+
+    Parameters
+    ----------
+    div_by_zero_value : float, optional
+        Value to use when dividing a non-zero value by zero. Optional, by
+        default None (i.e., use the number returned by `pandas` when dividing by
+        a Series that contains zero values). NB! This parameter is only used
+        when a *non*-zero value is divided by zero. For zero-by-zero divisions,
+        use the `zero_by_zero_value` parameter.
+    zero_by_zero_value : float, optional
+        Value to use when dividing zero by zero. Optional, by default None.
+    match_units : bool or None, optional
+        Whether to ensure that the units of the reference and data are
+        consistent. If None, the default of the `pyam_series_comparison`
+        function decorator will be used. Optional, by default None.
+
+    Returns
+    -------
+    Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]
+        The comparison function.
+    """
+    def _division_func(_ref: pd.Series, _data: pd.Series) -> pd.Series:
+        _div_series: pd.Series = _data / _ref
+        if div_by_zero_value is not None:
+            _div_series = _div_series.mask(
+                (_ref == 0.0) & (_data != 0.0),
+                other=div_by_zero_value,
+            )
+        if zero_by_zero_value is not None:
+            _div_series = _div_series.mask(
+                (_ref == 0.0) & (_data == 0.0),
+                other=zero_by_zero_value,
+            )
+        return _div_series
+    if match_units is None:
+        return pyam_series_comparison(_division_func)
+    else:
+        return pyam_series_comparison(_division_func, match_units=match_units)
+###END def get_ratio_comparison
