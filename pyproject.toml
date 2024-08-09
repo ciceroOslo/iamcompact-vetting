@@ -13,6 +13,7 @@ dependencies = [
     # Dependency required by p-e-a (but not listed among its requirements)
     "pandas-indexing>=0.5.1",
     "openpyxl>=3.1.5",
+    "xlsxwriter>=3.2.0",
 ]
 
 [build-system]

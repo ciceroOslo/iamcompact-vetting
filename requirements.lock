@@ -206,4 +206,5 @@ wrapt==1.16.0
     # via deprecated
     # via pandera
 xlsxwriter==3.2.0
+    # via iamcompact-vetting
     # via pyam-iamc
