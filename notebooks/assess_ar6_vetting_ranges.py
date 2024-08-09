@@ -112,7 +112,7 @@ iam_df = pyam.concat(
 )  # pyright: ignore[reportAssignmentType]
 
 # %% [markdown]
-# # Correct GDP and population unit names
+# ### Correct GDP and population unit names
 #
 # GDP variables in the 1st modelling cycle data from some models used currency
 # unit and base-year designations that are now considered non-standard, such
@@ -138,6 +138,14 @@ iam_df = iam_df.rename(
         'millions': 'million'
     },
 )  # pyright: ignore[reportAssignmentType, reportOptionalMemberAccess]
+
+# %% [markdown]
+# ### Rename unspecified `GDP` variable
+#
+# The TIAM result files in the 1st modelling cycle uses a variable `GDP` without
+# specifying whether it is MER or PPP. For vetting, we assume it's PPP and
+# therefore rename it to `GDP|PPP` so that it will match the reference data.
+iam_df = iam_df.rename(variable={'GDP': 'GDP|PPP'})  # pyright: ignore[reportAssignmentType]
 
 # %%[markdown]
 # # Assess the AR6 vetting ranges
