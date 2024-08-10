@@ -16,6 +16,8 @@ import typing as tp
 from pathlib import Path
 from io import BytesIO
 from abc import abstractmethod
+import functools
+import dataclasses
 
 import pandas as pd
 import xlsxwriter
@@ -30,6 +32,28 @@ from .base import (
 
 ExcelOutputSpec: tp.TypeAlias \
     = Path | str | BytesIO | xlsxwriter.Workbook
+
+
+excel_style_class = functools.partial(
+    dataclasses.dataclass,
+    slots=True,
+    kw_only=True,
+)
+"""Decorator for defining subclasses of `ExcelStyleBase`."""
+
+
+@excel_style_class()
+class ExcelStyleBase:
+    """Base class for defining styles for writing to an Excel file."""
+    pass
+###END class ExcelStyleBase
+
+
+@excel_style_class()
+class ExcelDataFrameStyle(ExcelStyleBase):
+    """Style specifications for writing DataFrames to an Excel file."""
+    pass
+###END class ExcelDataFrameStyle
 
 
 class ExcelWriterBase(ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar]):
