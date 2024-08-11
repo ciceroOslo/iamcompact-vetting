@@ -24,7 +24,8 @@ ResultsWriter
 import typing as tp
 from abc import ABC, abstractmethod
 
-
+import pyam
+import pandas as pd
 
 CritTypeVar = tp.TypeVar('CritTypeVar')
 """TypeVar for the type of `Criterion` or `CriterionTargetRange` expected by a
@@ -62,11 +63,26 @@ WriterTypeVar = tp.TypeVar('WriterTypeVar', bound=ResultsWriter, covariant=True)
 """TypeVar for the type of `ResultsWriter` subclass to be used by a
 `ResultOutput` subclass instance."""
 
+ResultsInputData: tp.TypeAlias = pyam.IamDataFrame | pd.Series
+"""Type alias for the type of data that can be used as input to the
+`prepare_output` method of a `ResultOutput` class. Currently set to the union
+of `pyam.IamDataFrame` and `pandas.Series`. This is the most general type.
+Subclasses may be more restrictive."""
+
+ResultsInputDataTypeVar = tp.TypeVar(
+    'ResultsInputDataTypeVar',
+    bound=ResultsInputData,
+)
 
 
 class ResultOutput(
         ABC,
-        tp.Generic[CritTypeVar, OutputDataTypeVar, WriteReturnTypeVar]
+        tp.Generic[
+            CritTypeVar,
+            ResultsInputDataTypeVar,
+            OutputDataTypeVar,
+            WriteReturnTypeVar
+        ]
 ):
     """Abstract base class for creating output from results.
 
@@ -83,14 +99,23 @@ class ResultOutput(
 
     def __init__(
             self,
+            *,
+            criteria: CritTypeVar,
             writer: ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar],
     ) -> None:
         """
+        All parameters are keyword-only, to allow for future changes in the
+        number of input parameters.
+
         Parameters
         ----------
+        criteria : CritTypeVar
+            The criteria that will be used to produce results that are to be
+            output by the `ResultOutput` instance.
         writer : WriterTypeVar
             The writer to be used to write the output.
         """
+        self.criteria: CritTypeVar = criteria
         self.writer: ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar] = \
             writer
     ###END def ResultOutput.__init__
@@ -98,17 +123,32 @@ class ResultOutput(
     @abstractmethod
     def prepare_output(
             self,
-            results: CritTypeVar,
+            data: ResultsInputDataTypeVar,
             /,
+            criteria: tp.Optional[CritTypeVar] = None,
             **kwargs
     ) -> OutputDataTypeVar:
         """Prepare the output data for writing.
 
+        The method takes data (in the form of a `pyam.IamDataFrame` or
+        `pandas.Series`, or similar data structure required by a given
+        subclass), passes it to the instance or instances store in `criteria`,
+        and prepares the proper output data structure for writing based on the
+        results.
+
         Parameters
         ----------
-        results : CritTypeVar
-            The results to be written, prepared into the proper data type by a
-            `ResultOutput` subclass instance.
+        data : ResultsInputDataTypeVar
+            The data to be passed to `criteria` before the results are prepared
+            into output.
+        critera : CritTypeVar, optional
+            The criteria instance(s) to be used for processing `data` and
+            producing results to be prepared for output. If `None` (default),
+            `self.criteria` should be used (which was set by the `__init__`
+            method), but subclasses have to implement this. The method in the
+            base class is an empty abstract method.
+        **kwargs
+            Additional keyword arguments that can be used by subclasses.
 
         Returns
         -------
@@ -157,10 +197,13 @@ class ResultOutput(
 
     def write_results(
             self,
-            results: CritTypeVar,
+            data: ResultsInputDataTypeVar,
             /,
-            writer: tp.Optional[ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar]] \
-                = None,
+            criteria: tp.Optional[CritTypeVar] = None,
+            *,
+            writer: tp.Optional[
+                ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar]
+            ] = None,
             **kwargs
     ) -> WriteReturnTypeVar:
         """Write the results to the format written by `writer`.
@@ -182,7 +225,13 @@ class ResultOutput(
         WriteReturnTypeVar
             The return value from the `writer.write` method.
         """
-        output: OutputDataTypeVar = self.prepare_output(results, **kwargs)
+        if criteria is None:
+            criteria = self.criteria
+        output: OutputDataTypeVar = self.prepare_output(
+            data,
+            criteria=criteria,
+            **kwargs
+        )
         return self.write_output(output, writer, **kwargs)
     ###END def ResultOutput.write_results
 
