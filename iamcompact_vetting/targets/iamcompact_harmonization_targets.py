@@ -77,8 +77,8 @@ class IamCompactHarmonizationRatioCriterion(TimeseriesRefCriterion):
         """
         comparison_series: pd.Series = super().compare(
             iamdf.filter(
-                regions=self.reference.region,
-                variables=self.reference.variable
+                region=self.reference.region,
+                variable=self.reference.variable
             )  # pyright: ignore[reportArgumentType]
         )
         return comparison_series.reindex(
