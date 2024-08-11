@@ -13,6 +13,7 @@ from ..pea_timeseries.timeseries_criteria_core import (
     AggDimOrder,
     get_ratio_comparison,
 )
+from ..pea_timeseries.dims import DIM
 from ..data import d43
 
 
@@ -53,6 +54,38 @@ class IamCompactHarmonizationRatioCriterion(TimeseriesRefCriterion):
             rating_function=rating_function,
         )
     ###END def IamCompactHarmonizationRatioCriterion.__init__
+
+    def compare(self, iamdf: pyam.IamDataFrame) -> pd.Series:
+        """Return comparison values for the given `IamDataFrame`.
+
+        This method acts like the superclass method
+        `TimeseriesRefCriterion.compare`, except that it drops any regions that
+        are not present in the reference dataset `self.reference`, and reindexes
+        the result to match `self.reference` on the variables, the input data
+        `iamdf` on the model, scenario and region dimensions, filling with nans
+        for any variables that are not present in the input data.
+
+        Parameters
+        ----------
+        iamdf : pyam.IamDataFrame
+            The `IamDataFrame` to get comparison values for.
+
+        Returns
+        -------
+        pd.Series
+            The comparison values for the given `IamDataFrame`.
+        """
+        comparison_series: pd.Series = super().compare(
+            iamdf.filter(
+                regions=self.reference.region,
+                variables=self.reference.variable
+            )  # pyright: ignore[reportArgumentType]
+        )
+        return comparison_series.reindex(
+            index=self.reference.variable,
+            level=DIM.VARIABLE,
+        )
+    ###END def IamCompactHarmonizationRatioCriterion.compare
 
 ###END class IamCompactHarmonizationRatioCriterion
 
