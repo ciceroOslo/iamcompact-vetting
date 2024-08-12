@@ -75,11 +75,16 @@ class IamCompactHarmonizationRatioCriterion(TimeseriesRefCriterion):
         pd.Series
             The comparison values for the given `IamDataFrame`.
         """
+        iamdf_filtered: pyam.IamDataFrame = iamdf.filter(
+            region=self.reference.region,
+            variable=self.reference.variable,
+        )  # pyright: ignore[reportAssignmentType]
         comparison_series: pd.Series = super().compare(
-            iamdf.filter(
-                region=self.reference.region,
-                variable=self.reference.variable
-            )  # pyright: ignore[reportArgumentType]
+            iamdf_filtered,
+            filter={
+                DIM.REGION: iamdf_filtered.region,
+                DIM.TIME: getattr(iamdf_filtered, DIM.TIME),
+            },
         )
         return comparison_series.reindex(
             index=self.reference.variable,
