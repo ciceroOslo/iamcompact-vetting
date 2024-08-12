@@ -21,6 +21,14 @@ from iamcompact_vetting.targets.target_classes import(
     CriterionTargetRange,
 )
 
+# %% [markdown]
+# # Set pandas display options
+#
+# We increase the number of rows displayed to make it easier to see full
+# outputs. Decrease or increase as needed.
+# %%
+pd.options.display.min_rows = 250
+pd.options.display.max_rows = 300
 
 # %% [markdown]
 # # Get the model/scenario data to be assessed.
