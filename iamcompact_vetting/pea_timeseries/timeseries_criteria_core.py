@@ -8,7 +8,7 @@ leverages and integrates with the existing `Criterion` class and related
 methods of the `pathways-ensemble-analysis` package (`pea`).
 """
 import typing as tp
-from collections.abc import Iterable, Callable, Iterator
+from collections.abc import Iterable, Callable, Iterator, Mapping
 from enum import StrEnum
 import dataclasses
 import functools
@@ -336,7 +336,11 @@ class TimeseriesRefCriterion(Criterion):
         raise RuntimeError(f'Unknown `agg_dim_order` {self.agg_dim_order}.')
     ###END def TimeseriesRefCriterion.aggregate_time_and_region
 
-    def compare(self, iamdf: pyam.IamDataFrame) -> pd.Series:
+    def compare(
+            self,
+            iamdf: pyam.IamDataFrame,
+            filter: tp.Optional[Mapping[str, tp.Any]] = None,
+    ) -> pd.Series:
         """Return comparison values for the given `IamDataFrame`.
 
         This method returns the comparison values for the given `IamDataFrame`,
@@ -353,14 +357,22 @@ class TimeseriesRefCriterion(Criterion):
         ----------
         iamdf : pyam.IamDataFrame
             The `IamDataFrame` to get comparison values for.
+        filter : Mapping[str, tp.Any], optional
+            Filter to apply to the reference data `self.reference` before
+            performing the comparison. Should be a dict that can be expanded
+            (`**filter`) and passed to `self.reference.filter`.
 
         Returns
         -------
         pd.Series
             The comparison values for the given `IamDataFrame`.
         """
-        ref = pyam_helpers.broadcast_dims(self.reference, iamdf,
-                                          self.broadcast_dims)
+        reference: pyam.IamDataFrame
+        if filter is not None:
+            reference = self.reference.filter(**filter)  # pyright: ignore[reportAssignmentType]
+        else:
+            reference = self.reference
+        ref = pyam_helpers.broadcast_dims(reference, iamdf, self.broadcast_dims)
         return self.comparison_function(ref, iamdf)
     ###END def TimeseriesRefCriterion.get_values
 
