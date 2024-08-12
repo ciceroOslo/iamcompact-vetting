@@ -340,6 +340,8 @@ class TimeseriesRefCriterion(Criterion):
             self,
             iamdf: pyam.IamDataFrame,
             filter: tp.Optional[Mapping[str, tp.Any]] = None,
+            join: tp.Literal['inner', 'outer', 'reference', 'input', None] \
+                = None,
     ) -> pd.Series:
         """Return comparison values for the given `IamDataFrame`.
 
@@ -361,6 +363,37 @@ class TimeseriesRefCriterion(Criterion):
             Filter to apply to the reference data `self.reference` before
             performing the comparison. Should be a dict that can be expanded
             (`**filter`) and passed to `self.reference.filter`.
+        join : `"inner"`, `"outer"`, `"reference"`, `"input"` or `None`
+            Whether and how to join the reference data and the input `iamdf`
+            before comparing. The operation acts similarly to a join or merge,
+            and is applied after broadcasting and filtering (if `filter` is
+            specified) the reference data, but before comparing. If `join` is
+            specified (i.e., not `None`), the output will in most cases have the
+            same index as that resulting from the join operation on the `model`,
+            `scenario`, `region`, `variable` and `year` columns. The `unit`
+            column is ignored, in order to avoid treating variables that have
+            different units in `iamdf` and in the reference data as distinct.
+            Note that this can cause problems if either data set has more than
+            one unit for the same combination of model, scenario, region and
+            variable, but this probably should not occur in practice unless
+            there is something wrong or not standards-compliant with the data.
+            The valid values are:
+                - `"inner"`: Use the intersection of the indexes of the `iamdf`
+                  and the `reference` timeseries.
+                - `"outer"`: Use the union of the indexes of the `iamdf` and the
+                  `reference` timeseries.
+                - `"reference"`: Use the index of the `reference` timeseries
+                - `"input"`: Use the index of the `iamdf` timeseries
+                - `None`: Do not perform any join, just perform the comparison
+                  operation directly. If `self.comparison_function` is a plain
+                  arithmetic operator or other binary operator, the result will
+                  in most cases be the same as for `"outer"`, except possibly
+                  for ordering.
+            In all cases when referring to the index of `reference`, the index
+            of `self.reference` after broadcasting and filtering is meant. For
+            `outer` and `inner`, the resulting index will usually be ordered in
+            the same way as `iamdf`, though the internal sorting of
+            `pyam.IamDataFrame` may change this.
 
         Returns
         -------
@@ -373,6 +406,37 @@ class TimeseriesRefCriterion(Criterion):
         else:
             reference = self.reference
         ref = pyam_helpers.broadcast_dims(reference, iamdf, self.broadcast_dims)
+        if join is not None:
+            _ref_data: pd.Series = \
+                pyam_helpers.as_pandas_series(ref, copy=False)
+            _ref_data_df: pd.DataFrame = _ref_data.reset_index(DIM.UNIT)
+            _iamdf_data: pd.Series = \
+                pyam_helpers.as_pandas_series(iamdf, copy=False)
+            _iamdf_data_df: pd.DataFrame = _iamdf_data.reset_index(DIM.UNIT)
+            _join_index: pd.Index
+            if join == 'inner':
+                _join_index = \
+                    _ref_data_df.index.intersection(_iamdf_data_df.index,
+                                                    sort=False)
+            elif join == 'outer':
+                _join_index = \
+                    _ref_data_df.index.union(_iamdf_data_df.index, sort=False)
+            elif join == 'reference':
+                _join_index = _ref_data_df.index
+            elif join == 'input':
+                _join_index = _iamdf_data_df.index
+            else:
+                raise ValueError(f'Unknown join value {join}.')
+            ref = pyam.IamDataFrame(
+                data=_ref_data_df.reindex(_join_index) \
+                    .set_index(DIM.UNIT, append=True) \
+                        .reorder_levels(_ref_data.index.names),
+            )
+            iamdf = pyam.IamDataFrame(
+                data=_iamdf_data_df.reindex(_join_index) \
+                    .set_index(DIM.UNIT, append=True) \
+                        .reorder_levels(_iamdf_data.index.names),
+            )
         return self.comparison_function(ref, iamdf)
     ###END def TimeseriesRefCriterion.get_values
 

@@ -55,7 +55,12 @@ class IamCompactHarmonizationRatioCriterion(TimeseriesRefCriterion):
         )
     ###END def IamCompactHarmonizationRatioCriterion.__init__
 
-    def compare(self, iamdf: pyam.IamDataFrame) -> pd.Series:
+    def compare(self,
+            iamdf: pyam.IamDataFrame,
+            filter: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            join: tp.Literal['inner', 'outer', 'reference', 'input', None] \
+                = 'inner',
+    ) -> pd.Series:
         """Return comparison values for the given `IamDataFrame`.
 
         This method acts like the superclass method
@@ -81,15 +86,13 @@ class IamCompactHarmonizationRatioCriterion(TimeseriesRefCriterion):
         )  # pyright: ignore[reportAssignmentType]
         comparison_series: pd.Series = super().compare(
             iamdf_filtered,
-            filter={
+            filter=filter if filter is not None else {
                 DIM.REGION: iamdf_filtered.region,
                 DIM.TIME: getattr(iamdf_filtered, DIM.TIME),
             },
+            join=join,
         )
-        return comparison_series.reindex(
-            index=self.reference.variable,
-            level=DIM.VARIABLE,
-        )
+        return comparison_series
     ###END def IamCompactHarmonizationRatioCriterion.compare
 
 ###END class IamCompactHarmonizationRatioCriterion
