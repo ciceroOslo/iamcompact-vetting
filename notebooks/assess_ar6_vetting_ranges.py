@@ -229,9 +229,12 @@ criterion_values_df: pd.DataFrame = pd.DataFrame(
 #         iam_df
 #     )
 # %%
+# Commenting out this code again, in favor of using a Timeseries
 iam_df_pop_gdp = iam_df.filter(variable=['Population', 'GDP|PPP'])
+# %%
 assessment_values: pd.Series = \
     gdp_pop_harmonization_criterion.get_values(iam_df_pop_gdp)
+# %%
+# 
 assessment_full_comparison: pd.Series = \
-    gdp_pop_harmonization_criterion.compare(iam_df_pop_gdp) \
-        .reindex_like(iam_df_pop_gdp._data)
+    gdp_pop_harmonization_criterion.compare(iam_df_pop_gdp)
