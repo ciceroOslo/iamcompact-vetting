@@ -124,7 +124,7 @@ iam_df = pyam.concat(
 #
 # GDP variables in the 1st modelling cycle data from some models used currency
 # unit and base-year designations that are now considered non-standard, such
-# as "$US" or "US$" instead of "USD", putting the base year directly after the
+# as "\$US" or "US\$" instead of "USD", putting the base year directly after the
 # currency unit rather than separating them by an underscore, and "Billion" with
 # a capital "B" instead of "billion". The current, correct convention for IAMC
 # formatted files is to use, e.g., "USD_2010" or "USD_2017" for 2010 and 2017
