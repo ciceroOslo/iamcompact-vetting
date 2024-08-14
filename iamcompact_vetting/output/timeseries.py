@@ -19,6 +19,7 @@ from .base import (
     ResultOutput,
     ResultsWriter,
     WriteReturnTypeVar,
+    WriterTypeVar,
 )
 
 
@@ -33,6 +34,7 @@ class TimeseriesComparisonFullDataOutput(
         TimeseriesRefCriterionTypeVar,
         pyam.IamDataFrame,
         pd.DataFrame,
+        WriterTypeVar,
         WriteReturnTypeVar,
     ]
 ):

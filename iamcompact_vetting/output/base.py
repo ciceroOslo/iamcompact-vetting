@@ -81,6 +81,7 @@ class ResultOutput(
             CritTypeVar,
             ResultsInputDataTypeVar,
             OutputDataTypeVar,
+            WriterTypeVar,
             WriteReturnTypeVar
         ]
 ):
@@ -101,7 +102,7 @@ class ResultOutput(
             self,
             *,
             criteria: CritTypeVar,
-            writer: ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar],
+            writer: WriterTypeVar,
     ) -> None:
         """
         All parameters are keyword-only, to allow for future changes in the
@@ -116,7 +117,7 @@ class ResultOutput(
             The writer to be used to write the output.
         """
         self.criteria: CritTypeVar = criteria
-        self.writer: ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar] = \
+        self.writer: WriterTypeVar= \
             writer
     ###END def ResultOutput.__init__
 
@@ -163,7 +164,7 @@ class ResultOutput(
             self,
             output: OutputDataTypeVar,
             /,
-            writer: tp.Optional[ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar]] \
+            writer: tp.Optional[WriterTypeVar] \
                 = None,
             **kwargs
     ) -> WriteReturnTypeVar:
@@ -202,7 +203,7 @@ class ResultOutput(
             criteria: tp.Optional[CritTypeVar] = None,
             *,
             writer: tp.Optional[
-                ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar]
+                WriterTypeVar
             ] = None,
             **kwargs
     ) -> WriteReturnTypeVar:

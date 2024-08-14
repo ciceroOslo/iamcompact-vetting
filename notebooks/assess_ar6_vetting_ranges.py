@@ -279,6 +279,7 @@ gdp_pop_harmonization_assessment_writer: DataFrameExcelWriter = \
 # %%
 gdp_pop_harmonization_assessment_output: TimeseriesComparisonFullDataOutput[
     IamCompactHarmonizationRatioCriterion,
+    DataFrameExcelWriter,
     None,
 ] = TimeseriesComparisonFullDataOutput(
     criteria=gdp_pop_harmonization_criterion,
@@ -303,4 +304,5 @@ gdp_pop_harmonization_assessment_output.write_output(
 
 # %% [markdown]
 # Then close the workbook to save it.
+# %%
 gdp_pop_harmonization_assessment_output.writer.close()
