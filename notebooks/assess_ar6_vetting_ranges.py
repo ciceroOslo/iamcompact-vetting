@@ -305,7 +305,7 @@ gdp_pop_harmonization_assessment_output.write_output(
 # %% [markdown]
 # Then close the workbook to save it.
 # %%
-gdp_pop_harmonization_assessment_output.writer.close()
+# gdp_pop_harmonization_assessment_output.writer.close()
 
 # %% [markdown]
 # Finally do the same, but prepare output and write directly using a
@@ -315,11 +315,9 @@ gdp_pop_harmonization_assessment_output.writer.close()
 direct_output_file: Path = gdp_pop_harmonization_assessment_output_file.with_stem(
     gdp_pop_harmonization_assessment_output_file.stem + '_direct'
 )
-gdp_pop_harmonization_assessment_writer_direct: DataFrameExcelWriter = \
-    DataFrameExcelWriter(
-        file=direct_output_file,
-        sheet_name='Results vs harmonization direct',
-    )
+gdp_pop_harmonization_assessment_writer.sheet_name \
+    = 'Results vs harmonization direct'
+
 # %%
 gdp_pop_harmonization_assessment_output_direct: TimeseriesComparisonFullDataOutput[
     IamCompactHarmonizationRatioCriterion,
@@ -327,10 +325,12 @@ gdp_pop_harmonization_assessment_output_direct: TimeseriesComparisonFullDataOutp
     None,
 ] = TimeseriesComparisonFullDataOutput(
     criteria=gdp_pop_harmonization_criterion,
-    writer=gdp_pop_harmonization_assessment_writer_direct
+    writer=gdp_pop_harmonization_assessment_writer
 )
 # %%
 gdp_pop_harmonization_assessment_output_direct.write_results(iam_df_pop_gdp)
 
+# %% [markdown]
+# Then close the workbook to save it.
 # %%
 gdp_pop_harmonization_assessment_output_direct.writer.close()
