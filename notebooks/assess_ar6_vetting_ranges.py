@@ -15,11 +15,17 @@ from iamcompact_vetting.targets.ar6_vetting_targets import (
     vetting_targets
 )
 from iamcompact_vetting.targets.iamcompact_harmonization_targets import(
+    IamCompactHarmonizationRatioCriterion,
     gdp_pop_harmonization_criterion
 )
 from iamcompact_vetting.targets.target_classes import(
     CriterionTargetRange,
 )
+from iamcompact_vetting.output.timeseries import (
+    TimeseriesComparisonFullDataOutput,
+)
+from iamcompact_vetting.output.excel import DataFrameExcelWriter
+
 
 # %% [markdown]
 # # Set pandas display options
@@ -246,3 +252,34 @@ assessment_values: pd.Series = \
 # 
 assessment_full_comparison: pd.Series = \
     gdp_pop_harmonization_criterion.compare(iam_df_pop_gdp)
+
+# %% [markdown]
+# # Write harmonization assessment result
+#
+# Test using a `TimesereComparisonFullDataOutput` with a `DataFrameExcelWriter`
+# to output the results to an Excel file.
+#
+# %% [markdown]
+# First create a `DataFrameExcelWriter` instance to write to a suitable Excel
+# file.
+# %%
+gdp_pop_harmonization_assessment_output_file: Path = \
+    Path.cwd() / 'gdp_pop_harmonization_assessment.xlsx'
+
+gdp_pop_harmonization_assessment_writer: DataFrameExcelWriter = \
+    DataFrameExcelWriter(
+        file=gdp_pop_harmonization_assessment_output_file,
+        sheet_name='Ratio results vs harmonization data',
+    )
+
+# %% [markdown]
+# Then create a `TimeseriesComparisonFullDataOutput` instance with the
+# `DataFrameExcelWriter` instance.
+# %%
+gdp_pop_harmonization_assessment_output: TimeseriesComparisonFullDataOutput[
+    IamCompactHarmonizationRatioCriterion,
+    None,
+] = TimeseriesComparisonFullDataOutput(
+    criteria=gdp_pop_harmonization_criterion,
+    writer=gdp_pop_harmonization_assessment_writer
+)
