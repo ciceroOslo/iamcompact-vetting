@@ -245,6 +245,7 @@ criterion_values_df: pd.DataFrame = pd.DataFrame(
 # %%
 # Commenting out this code again, in favor of using a Timeseries
 iam_df_pop_gdp = iam_df.filter(variable=['Population', 'GDP|PPP'])
+assert iam_df_pop_gdp is not None
 # %%
 assessment_values: pd.Series = \
     gdp_pop_harmonization_criterion.get_values(iam_df_pop_gdp)
@@ -269,7 +270,7 @@ gdp_pop_harmonization_assessment_output_file: Path = \
 gdp_pop_harmonization_assessment_writer: DataFrameExcelWriter = \
     DataFrameExcelWriter(
         file=gdp_pop_harmonization_assessment_output_file,
-        sheet_name='Ratio results vs harmonization data',
+        sheet_name='Results vs harmonization ratio',
     )
 
 # %% [markdown]
@@ -283,3 +284,23 @@ gdp_pop_harmonization_assessment_output: TimeseriesComparisonFullDataOutput[
     criteria=gdp_pop_harmonization_criterion,
     writer=gdp_pop_harmonization_assessment_writer
 )
+
+# %% [markdown]
+# Then write the results to the Excel file.
+
+# %% [markdown]
+# First prepare the output DataFrame for writing
+# %%
+gdp_pop_harmonization_result: pd.DataFrame = \
+    gdp_pop_harmonization_assessment_output.prepare_output(iam_df_pop_gdp)
+# %% [markdown]
+# Then write the output DataFrame to the Excel file using the
+# `TimeseriesComparisonFullDataOutput` instance.
+# %%
+gdp_pop_harmonization_assessment_output.write_output(
+    gdp_pop_harmonization_result
+)
+
+# %% [markdown]
+# Then close the workbook to save it.
+gdp_pop_harmonization_assessment_output.writer.close()

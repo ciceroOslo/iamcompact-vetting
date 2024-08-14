@@ -21,6 +21,7 @@ import dataclasses
 
 import pandas as pd
 import xlsxwriter
+from xlsxwriter import Workbook
 
 from .base import (
     ResultOutput,
@@ -30,8 +31,11 @@ from .base import (
 )
 
 
-ExcelOutputSpec: tp.TypeAlias \
-    = Path | str | BytesIO | xlsxwriter.Workbook
+MAX_SHEET_NAME_LENGTH: tp.Final[int] = 31
+"""The maximum permitted length of a sheet name in an Excel file."""
+
+ExcelFileSpec: tp.TypeAlias \
+    = Path | str | BytesIO
 
 
 excel_style_class = functools.partial(
@@ -58,27 +62,27 @@ class ExcelDataFrameStyle(ExcelStyleBase):
 
 class ExcelWriterBase(ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar]):
 
-    _workbook: xlsxwriter.Workbook
+    _workbook: Workbook
 
     def __init__(
             self,
-            file: ExcelOutputSpec,
+            file: ExcelFileSpec | Workbook,
     ) -> None:
         """
         Parameters
         ----------
-        file : ExcelOutputSpec
+        file : str, Path, BytesIO, or xlsxwriter.Workbook
             Path or str specifying the Excel file to write to, or a pre-existing
             `xlsxwriter.Workbook` object. Can also write to an in-memory
             `BytesIO` object.
         """
-        if not isinstance(file, xlsxwriter.Workbook):
+        if not isinstance(file, Workbook):
             if not isinstance(file, (Path, str, BytesIO)):
                 raise TypeError(
                     '`file` must be a `Path`, `str`, `BytesIO`, or '
                     '`xlsxwriter.Workbook` object.'
                 )
-            self._workbook = xlsxwriter.Workbook(file)
+            self._workbook = Workbook(file)
         else:
             self._workbook = file
         ###END def ExcelWriterBase.__init__
@@ -106,14 +110,15 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
 
     def __init__(
             self,
-            file: ExcelOutputSpec|pd.ExcelWriter,
+            file: ExcelFileSpec | pd.ExcelWriter,
             sheet_name: str,
             style: tp.Optional[ExcelDataFrameStyle] = None,
+            check_sheet_name_length: bool = True,
     ) -> None:
         """
         Parameters
         ----------
-        file : ExcelOutputSpec
+        file : Path, str, BytesIO, or pandas.ExcelWriter
             Path or str specifying the Excel file to write to, or a pre-existing
             `xlsxwriter.Workbook` or `pandas.ExcelWriter` object. Can also write
             to an in-memory `BytesIO` object.If using a `pandas.ExcelWriter`
@@ -123,19 +128,53 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
         style : ExcelDataFrameStyle, optional
             The style to apply to the data in the sheet. Optional, defaults to
             None.
+        check_sheet_name_length : bool, optional
+            Whether to check that the sheet name is not longer than
+            `MAX_SHEET_NAME_LENGTH` (the maximum permitted length of a
+            worksheet name in an Excel file). Raises a ValueError if `True` and
+            `sheet_name` is longer than the limit. Optional, defaults to True.
+            Note that if you set this to `False` and `sheet_name` is longer
+            than `MAX_SHEET_NAME_LENGTH`, you will almost certainly get an error
+            when you attempt to write the data to the workbook.
         """
         if isinstance(file, pd.ExcelWriter):
-            if not isinstance(file.book, xlsxwriter.Workbook):
+            if not isinstance(file.book, Workbook):
                 raise ValueError(
                     'When using a `pandas.ExcelWriter` object, its `.book` '
                     'attribute must be an `xlsxwriter.Workbook` object, i.e., '
                     'it must use `xlsxwriter` as its engine.'
                 )
+            self.excel_writer: pd.ExcelWriter = file
             super().__init__(file=file.book)
+        elif isinstance(file, Workbook):
+            raise TypeError(
+                '`DataFrameExcelWriter` does not support using an existing '
+                '`xlsxwriter.Workbook` instance. If you need this '
+                'functionality, instead of creating the `Workbook` instance '
+                'directly, you need to create a `pandas.ExcelWriter` object '
+                'with `engine="xlsxwriter"` and pass that to this method. '
+                'You can then get the `Workbook` instance from the '
+                '`.book` attribute of the `pandas.ExcelWriter` object.'
+            )
         else:
-            super().__init__(file)
+            self.excel_writer: pd.ExcelWriter = \
+                pd.ExcelWriter(file, engine='xlsxwriter')
+            super().__init__(file=self.excel_writer.book)
+        if check_sheet_name_length:
+            if len(sheet_name) > MAX_SHEET_NAME_LENGTH:
+                raise ValueError(
+                    f'`sheet_name` must not be longer than '
+                    f'{MAX_SHEET_NAME_LENGTH} characters. '
+                    f'`sheet_name` was {len(sheet_name)} characters long.'
+                )
         self.sheet_name: str = sheet_name
     ###END def DataFrameExcelWriter.__init__
+
+    @property
+    def workbook(self) -> Workbook:
+        assert isinstance(self.excel_writer.book, Workbook)
+        return self.excel_writer.book
+    ###END property def DataFrameExcelWriter.workbook
 
     def write(
             self,
@@ -155,7 +194,7 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
         """
         if sheet_name is None:
             sheet_name = self.sheet_name
-        data.to_excel(self._workbook, sheet_name=sheet_name)
+        data.to_excel(self.excel_writer, sheet_name=sheet_name)
     ###END def DataFrameExcelWriter.write
 
 ###END class DataFrameExcelWriter

@@ -75,7 +75,7 @@ except NameError:
     data_root: Path = Path.cwd()
 cache_file: Path = data_root / 'data_dict.pkl'
 FORCE_RELOAD: bool = False
-pickle_hash: str = '7fc3faa2781bd687cb91573dd1a81c77'
+pickle_hash: str = 'a5aaeeda88c914a9b55b9763493c50d8'
 write_cache: bool = True
 
 if cache_file.exists() and not FORCE_RELOAD:
