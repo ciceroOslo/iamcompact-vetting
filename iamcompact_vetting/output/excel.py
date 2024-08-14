@@ -210,7 +210,11 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
         """
         if sheet_name is None:
             sheet_name = self.sheet_name
-        data.to_excel(self.excel_writer, sheet_name=sheet_name)
+        data.to_excel(
+            self.excel_writer,
+            sheet_name=sheet_name,
+            merge_cells=False
+        )
     ###END def DataFrameExcelWriter.write
 
 ###END class DataFrameExcelWriter
