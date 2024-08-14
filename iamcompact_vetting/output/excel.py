@@ -106,7 +106,7 @@ class ExcelWriterBase(ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar]):
 
 class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
 
-    sheet_name: str
+    _sheet_name: str
 
     def __init__(
             self,
@@ -161,13 +161,13 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
                 pd.ExcelWriter(file, engine='xlsxwriter')
             super().__init__(file=self.excel_writer.book)
         if check_sheet_name_length:
-            if len(sheet_name) > MAX_SHEET_NAME_LENGTH:
-                raise ValueError(
-                    f'`sheet_name` must not be longer than '
-                    f'{MAX_SHEET_NAME_LENGTH} characters. '
-                    f'`sheet_name` was {len(sheet_name)} characters long.'
+            self.sheet_name = sheet_name
+        else:
+            if not isinstance(sheet_name, str):
+                raise TypeError(
+                    '`sheet_name` must be a string. '
                 )
-        self.sheet_name: str = sheet_name
+            self._sheet_name = sheet_name
     ###END def DataFrameExcelWriter.__init__
 
     @property
@@ -175,6 +175,22 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
         assert isinstance(self.excel_writer.book, Workbook)
         return self.excel_writer.book
     ###END property def DataFrameExcelWriter.workbook
+
+    @property
+    def sheet_name(self) -> str:
+        return self._sheet_name
+    ###END property def DataFrameExcelWriter.sheet_name
+
+    @sheet_name.setter
+    def sheet_name(self, value: str) -> None:
+        if len(value) > MAX_SHEET_NAME_LENGTH:
+            raise ValueError(
+                f'`sheet_name` must not be longer than '
+                f'{MAX_SHEET_NAME_LENGTH} characters. '
+                f'`sheet_name` was {len(value)} characters long.'
+            )
+        self._sheet_name = value
+    ###END property def DataFrameExcelWriter.sheet_name
 
     def write(
             self,
