@@ -23,9 +23,13 @@ ResultsWriter
 """
 import typing as tp
 from abc import ABC, abstractmethod
+from enum import StrEnum
+from collections.abc import Sequence
 
 import pyam
 import pandas as pd
+
+from ..targets.target_classes import CriterionTargetRange
 
 CritTypeVar = tp.TypeVar('CritTypeVar')
 """TypeVar for the type of `Criterion` or `CriterionTargetRange` expected by a
@@ -244,3 +248,60 @@ class ResultOutput(
     ###END def ResultOutput.write_results
 
 ###END abstract class ResultOutput
+
+
+class CTCol(StrEnum):
+    """Column names for DataFrames received by `CriterionTargetRangeOutput`."""
+    INRANGE = 'in_range'
+    DISTANCE = 'distance'
+    VALUE = 'value'
+###END enum CTCol
+
+
+class CriterionTargetRangeOutput(
+        ResultOutput[
+            CriterionTargetRange,
+            pyam.IamDataFrame,
+            pd.DataFrame,
+            WriterTypeVar,
+            WriteReturnTypeVar,
+        ],
+):
+    """TODO: NEED TO ADD PROPER DOCSTRING"""
+
+    def prepare_output(
+            self,
+            data: pyam.IamDataFrame,
+            /,
+            criteria: tp.Optional[CriterionTargetRange] = None,
+            *,
+            columns: Sequence[CTCol] = (
+                CTCol.INRANGE,
+                CTCol.DISTANCE,
+                CTCol.VALUE,
+            ),
+            column_titles: tp.Optional[tp.Dict[CTCol, str]] = None,
+    ) -> pd.DataFrame:
+        """TODO: NEED TO ADD PROPER DOCSTRING"""
+        if column_titles is None:
+            column_titles = {
+                CTCol.INRANGE: 'Is in target range',
+                CTCol.DISTANCE: 'Rel. distance from target',
+                CTCol.VALUE: 'Value',
+            }
+        if criteria is None:
+            criteria = self.criteria
+        result_columns: list[pd.Series] = []
+        for _col in columns:
+            if _col == CTCol.INRANGE:
+                result_columns.append(criteria.get_in_range(data))
+            elif _col == CTCol.DISTANCE:
+                result_columns.append(criteria.get_distances(data))
+            elif _col == CTCol.VALUE:
+                result_columns.append(criteria.get_values(data))
+            else:
+                raise ValueError(f'Unrecognized column: {_col!r}')
+        results_df: pd.DataFrame = pd.concat(result_columns, axis=1)
+        results_df.column = results_df.columns.map(column_titles)
+        return results_df
+    ###END def CriterionTargetRangeOutput.prepare_output
