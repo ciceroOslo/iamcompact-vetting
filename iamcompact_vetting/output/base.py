@@ -205,7 +205,8 @@ class ResultOutput(
             writer: tp.Optional[
                 WriterTypeVar
             ] = None,
-            **kwargs
+            prepare_output_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
+            write_output_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
     ) -> WriteReturnTypeVar:
         """Write the results to the format written by `writer`.
 
@@ -218,22 +219,28 @@ class ResultOutput(
         writer : tp.Optional[WriterTypeVar]
             The writer to be used to write the output. If `None`, the
             `self.writer` attribute is used.
-        **kwargs
-            Additional keyword arguments to be passed to `writer.write`.
+        prepare_output_kwargs : dict, optional
+            Additional keyword arguments to be passed to `prpare_output`.
+        write_output_kwargs : dict, optional
+            Additional keyword arguments to be passed to `write_output`.
 
         Returns
         -------
         WriteReturnTypeVar
             The return value from the `writer.write` method.
         """
+        if prepare_output_kwargs is None:
+            prepare_output_kwargs = dict()
+        if write_output_kwargs is None:
+            write_output_kwargs = dict()
         if criteria is None:
             criteria = self.criteria
         output: OutputDataTypeVar = self.prepare_output(
             data,
             criteria=criteria,
-            **kwargs
+            **prepare_output_kwargs,
         )
-        return self.write_output(output, writer, **kwargs)
+        return self.write_output(output, writer, **write_output_kwargs)
     ###END def ResultOutput.write_results
 
 ###END abstract class ResultOutput
