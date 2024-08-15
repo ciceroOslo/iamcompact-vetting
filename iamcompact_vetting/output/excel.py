@@ -18,6 +18,7 @@ from io import BytesIO
 from abc import abstractmethod
 import functools
 import dataclasses
+from collections.abc import Sequence
 
 import pandas as pd
 import xlsxwriter
@@ -103,6 +104,21 @@ class ExcelWriterBase(ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar]):
 
 ###END abstract class ExcelWriterBase
 
+
+class ToExcelKwargs(tp.TypedDict):
+    """Keyword arguments for `pandas.DataFrame.to_excel`."""
+    sheet_name: str
+    no_rep: str
+    float_format: str
+    columns: Sequence[str]
+    header: bool | list[str]
+    index: bool
+    index_label: str
+    startrow: int
+    startcol: int
+    merge_cells: bool
+    engine_kwargs: dict
+###END TypedDict class ToExcelKwargs
 
 class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
 
@@ -197,6 +213,7 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
             data: pd.DataFrame,
             /,
             sheet_name: tp.Optional[str] = None,
+            to_excel_kwargs: tp.Optional[dict[str, tp.Any]] = None,
     ) -> None:
         """Write the given `pandas.DataFrame` to the workbook.
         
@@ -207,13 +224,28 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
         sheet_name : str, optional
             The name of the sheet to write the data to. Optional, defaults to
             `self.sheet_name` (the `sheet_name` passed to `__init__`).
+        to_excel_kwargs : dict, optional
+            Additional keyword arguments to pass to `pd.DataFrame.to_excel`
+            (apart from `sheet_name`). Optional, defaults to None
         """
+        if to_excel_kwargs is None:
+            to_excel_kwargs = dict()
         if sheet_name is None:
-            sheet_name = self.sheet_name
+            if 'sheet_name' in to_excel_kwargs:
+                sheet_name = to_excel_kwargs.pop('sheet_name')
+            else:
+                sheet_name = self.sheet_name
+        if 'merge_cells' not in to_excel_kwargs:
+            to_excel_kwargs['merge_cells'] = False
+        if 'engine' in to_excel_kwargs:
+            raise ValueError(
+                '`DataFrameExcelWriter` does not support specifying the '
+                '`engine` argument to `DataFrame.to_excel`. '
+            )
         data.to_excel(
             self.excel_writer,
             sheet_name=sheet_name,
-            merge_cells=False
+            **to_excel_kwargs
         )
     ###END def DataFrameExcelWriter.write
 
