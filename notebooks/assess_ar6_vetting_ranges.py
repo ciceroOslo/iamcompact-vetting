@@ -21,6 +21,7 @@ from iamcompact_vetting.targets.iamcompact_harmonization_targets import(
 from iamcompact_vetting.targets.target_classes import(
     CriterionTargetRange,
 )
+from iamcompact_vetting.output.base import CriterionTargetRangeOutput
 from iamcompact_vetting.output.timeseries import (
     TimeseriesComparisonFullDataOutput,
 )
@@ -231,6 +232,37 @@ criterion_values_df: pd.DataFrame = pd.DataFrame(
     }
 )
 
+# %% [markdown]
+# Try writing output with a `CriterionRangeTargetOutput` instance
+# %%
+def make_valid_excel_sheetname(s: str) -> str:
+    return s.replace(':', '-') \
+        .replace('*', ' ') \
+        .replace('/', '|') \
+        .replace('\\', '|') \
+        [0:31]
+
+results_excel_writer: pd.ExcelWriter = pd.ExcelWriter("vetting_results.xlsx",
+                                              engine='xlsxwriter')
+vetting_results_outputs: list[
+    CriterionTargetRangeOutput[DataFrameExcelWriter, None]
+] = [
+    CriterionTargetRangeOutput(
+        criteria=_crit_target,
+        writer=DataFrameExcelWriter(
+            results_excel_writer,
+            sheet_name=make_valid_excel_sheetname(_crit_target.name)
+        )
+    )
+    for _crit_target in vetting_targets
+]
+
+# %% [markdown]
+# Write the results
+# %%
+for _output in vetting_results_outputs:
+    _output.write_results(iam_df)
+results_excel_writer.close()
 
 # %% [markdown]
 # # Assess compliance with harmonisation data for population and GDP.

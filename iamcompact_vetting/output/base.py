@@ -294,14 +294,21 @@ class CriterionTargetRangeOutput(
         result_columns: list[pd.Series] = []
         for _col in columns:
             if _col == CTCol.INRANGE:
-                result_columns.append(criteria.get_in_range(data))
+                result_columns.append(
+                    criteria.get_in_range(data).rename(_col)
+                )
             elif _col == CTCol.DISTANCE:
-                result_columns.append(criteria.get_distances(data))
+                result_columns.append(
+                    criteria.get_distances(data).rename(_col)
+                )
             elif _col == CTCol.VALUE:
-                result_columns.append(criteria.get_values(data))
+                result_columns.append(
+                    criteria.get_values(data).rename(_col)
+                )
             else:
                 raise ValueError(f'Unrecognized column: {_col!r}')
         results_df: pd.DataFrame = pd.concat(result_columns, axis=1)
-        results_df.column = results_df.columns.map(column_titles)
+        if column_titles is not None:
+            results_df = results_df.rename(columns=column_titles)
         return results_df
     ###END def CriterionTargetRangeOutput.prepare_output
