@@ -1,0 +1,5 @@
+outs:
+- md5: 8e1e2cd2fbe72474d1b8467db2d67865
+  size: 23386
+  hash: md5
+  path: vetting_results.xlsx
