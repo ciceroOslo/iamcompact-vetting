@@ -1,0 +1,13 @@
+Copyright 2024 CICERO Center for International Climate Researach (Oslo, Norway)
+
+`iamcompact-vetting` was originally developed for and funded through the
+European Union's Horizon Europe project IAM COMPACT (grant agreement 101056306).
+
+If the package is contributes significantly to analyses that are included in a
+published scientific work, the authors would appreciate a citation of the
+package's GitHub repository (https://github.com/ciceroOslo/iamcompact-vetting).
+
+The source code for the package includes subclasses of classes defined in the
+package `pathways-ensemble-analysis`
+(https://gitlab.com/climateanalytics/pathways-ensemble-analysis, released under
+MIT license).
