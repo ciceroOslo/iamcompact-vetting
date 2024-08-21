@@ -1,7 +1,32 @@
 """Notebook to assess AR6 vetting ranges for a user-provided IamDataFrame."""
 
 # %% [markdown]
-# # Imports
+# # Run IAM COMPACT locally/interactively
+#
+# The code in this notebook shows how to run IAM COMPACT veting checks for the
+# 1st modelling cycle manually and locally on the users' own computers, without
+# being dependent on the I2AM PARIS web platform.
+#
+# The notebook comes in two formats:
+#   * Extension `.ipynb`: A Jupyter notebook. Requires using a Jupyter notebook
+#     server or a locally running Jupyter notebook kernel.
+#   * Extension `.py`: A standard Python file with cell denoted in comments as
+#     starting with `# %%`. Can be used interactively in Visual Studio Code or
+#     other applications that can run Python files interactively and recognizes
+#     the `# %%` cell delimiter. Can also be imported as a module, in which case
+#     the entire file is run non-interactively from top to bottom, and outputs
+#     become available as module attributes.
+#
+# This notebook is specific to 1st modelling cycle and the model result files
+# that were available on the IAM COMPACT SharePoint in July 2024. This includes
+# code to load and fix issues with those specific files. A separate notebbok
+# file, named `vetting_assessment`, can be used if you want to run the code with
+# other model results in hopefully non-problematic IAMC-formatted Excel file.
+
+# %% [markdown]
+# ## Imports
+#
+# Import the required packages.
 # %%
 from pathlib import Path
 import re
@@ -10,8 +35,6 @@ import pyam
 import pandas as pd
 
 from iamcompact_vetting.targets.ar6_vetting_targets import (
-    vetting_targets_historical,
-    vetting_targets_future,
     vetting_targets
 )
 from iamcompact_vetting.targets.iamcompact_harmonization_targets import(
