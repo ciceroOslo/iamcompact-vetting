@@ -24,6 +24,9 @@
 # other model results in hopefully non-problematic IAMC-formatted Excel file.
 
 # %% [markdown]
+# # Setup
+#
+# %% [markdown]
 # ## Imports
 #
 # Import the required packages.
@@ -52,7 +55,7 @@ from iamcompact_vetting.output.excel import DataFrameExcelWriter
 
 
 # %% [markdown]
-# # Set pandas display options
+# ## Set pandas display options
 #
 # We increase the number of rows displayed to make it easier to see full
 # outputs. Decrease or increase as needed.
@@ -61,12 +64,16 @@ pd.options.display.min_rows = 250
 pd.options.display.max_rows = 300
 
 # %% [markdown]
-# # Get the model/scenario data to be assessed.
+# ## Get the model/scenario data to be assessed.
 #
 # In the code cell below, add code to load the data you want to assess and
 # assign it to the variable `iam_df`. This can be done either by using
 # `pyam.IamDataFrame` to read from an Excel or CSV file, or by importing
 # your own code that loads and/or processes the data.
+#
+# In this notebook specifically for the 1st modelling cycle, we use import a
+# separate module that loads precompiled data from the Excel files with results
+# from the 1st modelling cycle.
 # %%
 from cycle1_study_model_outputs.cycle1_results import joint_iamdf
 
@@ -74,28 +81,30 @@ iam_df: pyam.IamDataFrame = joint_iamdf
 
 
 # %% [markdown]
-# # Fix Errors in the data
+# # Data processing / fixing data issues
 #
 # In the code cell or cells below, add code to fix any errors in the data that
-# you want to fix. the variable `iam_df` must hold the correct data at the end.
-# Add cells as needed, preferably at least one cell per distinct error being
-# fixed.
+# you want to fix or do any necessary processing before running the vetting
+# code. The variable `iam_df` must hold the correct data at the end. Add cells
+# as needed, preferably at least one cell per distinct error being fixed.
 #
-# In the original version of this notebook with results from the 1st modelling
-# cycle as of July 2024, the errors that needed to be fixed included the
-# following:
-#   - Some models used `MtCO2/yr` (without space) for `Emissions|CO2|Energy and
-#     Industrial Processes` instead of `Mt CO2/yr`.
-
+# In this notebook for the 1st modelling cycle, there are several cells that
+# make modifications to units, variable names and other aspects that needed to
+# be adjusted to be compatible with the vetting procedures. Each distinct issue
+# is processed in a separate cell under a distinct header.
+#
 # %% [markdown]
-# ### Replace faulty unit `MtCO2/yr` with `Mt CO2/yr`
+# ## Replace faulty unit `MtCO2/yr` with `Mt CO2/yr`
+#
+# The IAMC standard has a space between the mass unit and the gas species name
+# for species-specific mass units.
 # %%
 iam_df = iam_df.rename(
     unit={"MtCO2/yr": "Mt CO2/yr"}
 )  # pyright: ignore[reportAssignmentType]
 
 # %% [markdown]
-# ### Replace `Carbon Capture` with `Carbon Sequestration|CCS` for PROMETHEUS
+# ## Replace `Carbon Capture` with `Carbon Sequestration|CCS` for PROMETHEUS
 #
 # The PROMETHEUS model uses `Carbon Capture` instead of the name
 # `Carbon Sequestration|CCS` used by the `pathways-ensemble-analysis` package
@@ -121,7 +130,9 @@ if len(iam_df.filter(variable='Carbon Capture*').variable) > 0:
     raise RuntimeError('Unexpected `Carbon Capture` variables remaining.')
 
 # %% [markdown]
-# ### Replace `Energy & Industrial Processes` with `Energy and Industrial Processes` in variable names.
+# ## Replace `Energy & Industrial Processes` with `Energy and Industrial Processes` in variable names.
+#
+# The IAMC standard uses "and" in variable names rather than "&".
 # %%
 iam_df = iam_df.rename(
     variable={
@@ -134,10 +145,13 @@ iam_df = iam_df.rename(
 )  # pyright: ignore[reportAssignmentType]
 
 # %% [markdown]
-# ### Define a new variable `Secondary Energy|Electricity|Wind and Solar`
+# ## Define a new variable `Secondary Energy|Electricity|Wind and Solar`
 #
-# Not present in the 1st cycle models, so define it by adding up
-# `Secondary Energy|Electricity|Wind` and `Secondary Energy|Electricity|Solar`.
+# One of the AR6 vetting criteria require a single variable for electricity
+# generated from wind and solar. This was not present in the 1st cycle models,
+# so define it by adding up `Secondary Energy|Electricity|Wind` and 
+# `Secondary Energy|Electricity|Solar`.
+# %%
 iam_df = pyam.concat(
     [
         iam_df,
@@ -150,7 +164,7 @@ iam_df = pyam.concat(
 )  # pyright: ignore[reportAssignmentType]
 
 # %% [markdown]
-# ### Correct GDP and population unit names
+# ## Correct GDP and population unit names
 #
 # GDP variables in the 1st modelling cycle data from some models used currency
 # unit and base-year designations that are now considered non-standard, such
@@ -163,7 +177,7 @@ iam_df = pyam.concat(
 # For population, some models used "millions" plural instead of "million", which
 # also needs to be corrected.
 
-
+# %%
 def _replace_usd_unit_name(s: str) -> str:
     usd_unit_name_pattern = re.compile(r"(?:US\$|\$US)\s*(\d{4})")
     return usd_unit_name_pattern.sub(r"USD_\1", s)
@@ -178,11 +192,12 @@ iam_df = iam_df.rename(
 )  # pyright: ignore[reportAssignmentType, reportOptionalMemberAccess]
 
 # %% [markdown]
-# ### Rename unspecified `GDP` variable
+# ## Rename unspecified `GDP` variable
 #
 # The TIAM result files in the 1st modelling cycle uses a variable `GDP` without
 # specifying whether it is MER or PPP. For vetting, we assume it's PPP and
 # therefore rename it to `GDP|PPP` so that it will match the reference data.
+# %%
 iam_df = iam_df.rename(variable={'GDP': 'GDP|PPP'})  # pyright: ignore[reportAssignmentType]
 
 # %%[markdown]
