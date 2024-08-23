@@ -1,2 +1,0 @@
-['remote "sshfs"']
-    url = ../dvc_sshfs_remote
