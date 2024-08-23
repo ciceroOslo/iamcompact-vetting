@@ -299,40 +299,34 @@ for _output in vetting_results_outputs:
 results_excel_writer.close()
 
 # %% [markdown]
-# # Assess compliance with harmonisation data for population and GDP.
+# # Assess agreement with harmonisation data for population and GDP.
 #
-# *NB!* The current code below is just a test at the moment. First get a
+# *NB!* The current code below is just a test at the moment. We use a
 # `TimeseriesRefCriterion` with the population and GDP data from harmonization,
 # to test whether it works with the model data.
-# assessment_values: pd.Series = \
-#     gdp_pop_harmonization_criterion.get_values(
-#         iam_df
-#     )
+#
+# First get just the GDP and Population variables from the data. Assert that it
+# is not None (not necessary, but if you use Python with a type checker, it is
+# needed to avoid a warning, since the `IamDataFrame.filter` method can return
+# None):
 # %%
-# Commenting out this code again, in favor of using a Timeseries
 iam_df_pop_gdp = iam_df.filter(variable=['Population', 'GDP|PPP'])
 assert iam_df_pop_gdp is not None
-# %%
-assessment_values: pd.Series = \
-    gdp_pop_harmonization_criterion.get_values(iam_df_pop_gdp)
-# %%
-# 
-assessment_full_comparison: pd.Series = \
-    gdp_pop_harmonization_criterion.compare(iam_df_pop_gdp)
 
 # %% [markdown]
-# # Write harmonization assessment result
-#
-# Test using a `TimesereComparisonFullDataOutput` with a `DataFrameExcelWriter`
-# to output the results to an Excel file.
-#
-# %% [markdown]
-# First create a `DataFrameExcelWriter` instance to write to a suitable Excel
-# file.
+# Then define a Path to where you want to write an Excel file with the results
+# at the moment it writes it to the file `gdp_pop_harmonization_assessment.xlsx`
+# in the current working directory, but you can change this to your liking.
+# Consult the Python documentation for `pathlib.Path` if you are unfamiliar with
+# how to use Path objects.
 # %%
 gdp_pop_harmonization_assessment_output_file: Path = \
     Path.cwd() / 'gdp_pop_harmonization_assessment.xlsx'
 
+# %% [markdown]
+# Then create a `DataFrameExcelWriter` instance that will do the actual writing
+# to Excel:
+# %%
 gdp_pop_harmonization_assessment_writer: DataFrameExcelWriter = \
     DataFrameExcelWriter(
         file=gdp_pop_harmonization_assessment_output_file,
@@ -340,64 +334,24 @@ gdp_pop_harmonization_assessment_writer: DataFrameExcelWriter = \
     )
 
 # %% [markdown]
-# Then create a `TimeseriesComparisonFullDataOutput` instance with the
-# `DataFrameExcelWriter` instance.
+# Define a `TimeseriesComparisonFullDataOutput` instance, which will calculate
+# the results, and use `gdp_pop_harmonization_assessment_writer` to write the
+# results to the Excel file.
 # %%
-gdp_pop_harmonization_assessment_output: TimeseriesComparisonFullDataOutput[
-    IamCompactHarmonizationRatioCriterion,
-    DataFrameExcelWriter,
-    None,
-] = TimeseriesComparisonFullDataOutput(
-    criteria=gdp_pop_harmonization_criterion,
-    writer=gdp_pop_harmonization_assessment_writer
-)
-
-# %% [markdown]
-# Then write the results to the Excel file.
-
-# %% [markdown]
-# First prepare the output DataFrame for writing
-# %%
-gdp_pop_harmonization_result: pd.DataFrame = \
-    gdp_pop_harmonization_assessment_output.prepare_output(iam_df_pop_gdp)
-# %% [markdown]
-# Then write the output DataFrame to the Excel file using the
-# `TimeseriesComparisonFullDataOutput` instance.
-# %%
-gdp_pop_harmonization_assessment_output.write_output(
-    gdp_pop_harmonization_result
-)
-
-# %% [markdown]
-# Then close the workbook to save it.
-# %%
-# gdp_pop_harmonization_assessment_output.writer.close()
-
-# %% [markdown]
-# Finally do the same, but prepare output and write directly using a
-# `TimeseriesComparisonFullDataOutput` instance, through the `write_results`
-# method
-# %%
-direct_output_file: Path = gdp_pop_harmonization_assessment_output_file.with_stem(
-    gdp_pop_harmonization_assessment_output_file.stem + '_direct'
-)
-gdp_pop_harmonization_assessment_writer.sheet_name \
-    = 'Results vs harmonization direct'
-
-# %%
-gdp_pop_harmonization_assessment_output_direct: TimeseriesComparisonFullDataOutput[
-    IamCompactHarmonizationRatioCriterion,
-    DataFrameExcelWriter,
-    None,
+gdp_pop_harmonization_assessment_output: \
+    TimeseriesComparisonFullDataOutput[
+        IamCompactHarmonizationRatioCriterion,
+        DataFrameExcelWriter,
+        None,
 ] = TimeseriesComparisonFullDataOutput(
     criteria=gdp_pop_harmonization_criterion,
     writer=gdp_pop_harmonization_assessment_writer
 )
 # %%
-gdp_pop_harmonization_result_direct, _ignore = \
-    gdp_pop_harmonization_assessment_output_direct.write_results(iam_df_pop_gdp)
+gdp_pop_harmonization_result, _ignore = \
+    gdp_pop_harmonization_assessment_output.write_results(iam_df_pop_gdp)
 
 # %% [markdown]
 # Then close the workbook to save it.
 # %%
-gdp_pop_harmonization_assessment_output_direct.writer.close()
+gdp_pop_harmonization_assessment_output.writer.close()
