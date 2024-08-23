@@ -9,15 +9,17 @@ import pandas as pd
 import numpy as np
 import pyam
 
-from iamcompact_vetting.iam.timeseries_criteria_core import (
+from iamcompact_vetting.pea_timeseries.timeseries_criteria_core import (
     pyam_series_comparison,
     AggFuncTuple,
     TimeseriesRefCriterion,
+    get_diff_comparison,
+    get_ratio_comparison,
 )
-from iamcompact_vetting.iam.dims import UnknownDimensionNameError
+from iamcompact_vetting.pea_timeseries.dims import UnknownDimensionNameError
 from iamcompact_vetting.pdhelpers import replace_level_values
 
-from . import get_test_energy_iamdf_tuple as construct_test_iamdf
+from .. import get_test_energy_iamdf_tuple as construct_test_iamdf
 
 
 
@@ -512,3 +514,146 @@ class TestTimeseriesRefCriterionComparisons(unittest.TestCase):
     ###END def test_ratio_comparisons
 
 ###END class TestTimeseriesRefCriterionComparisons
+
+
+class TestGetRatioComparison(unittest.TestCase):
+    """Test the get_ratio_comparison and get_diff_comparison functions."""
+
+    # Get the values that pandas uses for zero-divisions
+    _zero_division_dividend: pd.Series = pd.Series(
+        data=[1.0, 0.0],
+        index=[0, 1]
+    )
+    _zero_division_divisor: pd.Series = pd.Series(
+        data=[0.0, 0.0],
+        index=[0, 1]
+    )
+    _zero_division_result: pd.Series = \
+        _zero_division_dividend / _zero_division_divisor
+    pd_nonzero_by_zero_value = _zero_division_result[0]
+    pd_zero_by_zero_value = _zero_division_result[1]
+
+    # Define index for pyam.IamDataFrames to use in the testing
+    years: list[int] = [2020, 2025]
+    _years_length: int = len(years)
+    models: list[str] = ['model a', 'model a', 'model b']
+    scenarios: list[str] = ['scenario a', 'scenario b', 'scenario b']
+    regions: list[str] = ['world']*3
+    variables: list[str] = ['Emissions|CO2', 'Primary Energy', 'Primary Energy']
+    units: list[str] = ['Mt CO2/yr', 'EJ/yr', 'EJ/yr']
+    index: pd.MultiIndex = pd.MultiIndex.from_arrays(
+        arrays=[models, scenarios, regions, variables, units],
+        names=['model', 'scenario', 'region', 'variable', 'unit'],
+    )
+
+    reference_nozeros: pyam.IamDataFrame = pyam.IamDataFrame(
+        pd.DataFrame(
+            data=[[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]],
+            index=index,
+            columns=years
+        )
+    )
+    reference_somezeros: pyam.IamDataFrame = pyam.IamDataFrame(
+        pd.DataFrame(
+            data=[[1.0, 4.0], [0.0, 5.0], [3.0, 0.0]],
+            index=index,
+            columns=years
+        )
+    )
+    vettingdata: pyam.IamDataFrame = pyam.IamDataFrame(
+        pd.DataFrame(
+            data=[[2.0, 12.0], [0.0, 7.5], [9.0, 6.0]],
+            index=index,
+            columns=years
+        )
+    )
+
+    def test_get_ratio_comparison_no_zerodivision(self):
+        """Test the get_ratio_comparison function with no zero-division."""
+        expected_df: pd.Series = pyam.IamDataFrame(
+            pd.DataFrame(
+                index=self.index,
+                columns=self.years,
+                data=[[2.0, 3.0], [0.0, 1.5], [3.0, 1.0]],
+            )
+        )._data
+        comparison_df: pd.Series = get_ratio_comparison()(
+            self.reference_nozeros,
+            self.vettingdata
+        )
+        self.assertTrue(comparison_df.equals(expected_df))
+    ###END def TestGetDiffComparison.test_get_diff_comparison_no_zerodivision
+
+    def test_get_ratio_comparison_nonzero_by_zero(self):
+        """Test the get_diff_comparison function with non-zero by zero div."""
+        expected_df: pd.Series = pd.DataFrame(
+            index=self.index,
+            columns=self.years,
+            data=[[2.0, 3.0], [self.pd_zero_by_zero_value, 1.5], [3.0, 43.0]],
+        ).stack(future_stack=True)  # pyright: ignore[reportAssignmentType]
+        comparison_df: pd.Series = get_ratio_comparison(div_by_zero_value=43.0)(
+            self.reference_somezeros,
+            self.vettingdata
+        )
+        self.assertTrue(comparison_df.equals(expected_df))
+    ###END def TestGetDiffComparison.test_get_diff_comparison_nonzero_by_zero
+
+    def test_get_ratio_comparison_zero_by_zero(self):
+        """Test the get_diff_comparison function with zero by zero div."""
+        expected_df: pd.Series = pd.DataFrame(
+            index=self.index,
+            columns=self.years,
+            data=[[2.0, 3.0], [43.0, 1.5], [3.0, self.pd_nonzero_by_zero_value]],
+        ).stack(future_stack=True)  # pyright: ignore[reportAssignmentType]
+        comparison_df: pd.Series = get_ratio_comparison(zero_by_zero_value=43.0)(
+            self.reference_somezeros,
+            self.vettingdata
+        )
+        self.assertTrue(comparison_df.equals(expected_df))
+    ###END def TestGetDiffComparison.test_get_diff_comparison_zero_by_zero
+
+    def test_get_ratio_comparison_nonzero_and_zero_by_zero(self):
+        """Test the get_diff_comparison function with non-zero and zero div."""
+        expected_df: pd.Series = pd.DataFrame(
+            index=self.index,
+            columns=self.years,
+            data=[[2.0, 3.0], [43.0, 1.5], [3.0, 47.0]],
+        ).stack(future_stack=True)  # pyright: ignore[reportAssignmentType]
+        comparison_df: pd.Series = get_ratio_comparison(
+            div_by_zero_value=47.0, zero_by_zero_value=43.0
+        )(
+            self.reference_somezeros,
+            self.vettingdata
+        )
+        self.assertTrue(comparison_df.equals(expected_df))
+    ###END def TestGetDiffComparison.test_get_diff_comparison_nonzero_and_zero_by_zero
+
+    def test_get_diff_comparison_notabsolute(self):
+        """Test the get_diff_comparison function with `absolute=False`."""
+        expected_df: pd.Series = pd.DataFrame(
+            index=self.index,
+            columns=self.years,
+            data=[[1.0, 8.0], [-2.0, 2.5], [6.0, 0.0]],
+        ).stack(future_stack=True)  # pyright: ignore[reportAssignmentType]
+        comparison_df: pd.Series = get_diff_comparison(absolute=False)(
+            self.reference_nozeros,
+            self.vettingdata
+        )
+        self.assertTrue(comparison_df.equals(expected_df))
+    ###END def TestGetDiffComparison.test_get_diff_comparison_notabsolute
+
+    def test_get_diff_comparison_absolute(self):
+        """Test the get_diff_comparison function with `absolute=False`."""
+        expected_df: pd.Series = pd.DataFrame(
+            index=self.index,
+            columns=self.years,
+            data=[[1.0, 8.0], [2.0, 2.5], [6.0, 0.0]],
+        ).stack(future_stack=True)  # pyright: ignore[reportAssignmentType]
+        comparison_df: pd.Series = get_diff_comparison(absolute=True)(
+            self.reference_nozeros,
+            self.vettingdata
+        )
+        self.assertTrue(comparison_df.equals(expected_df))
+    ###END def TestGetDiffComparison.test_get_diff_comparison_notabsolute
+
+###END class TestGetComparisons

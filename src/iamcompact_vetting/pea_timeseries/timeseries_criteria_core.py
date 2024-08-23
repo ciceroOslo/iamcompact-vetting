@@ -8,7 +8,7 @@ leverages and integrates with the existing `Criterion` class and related
 methods of the `pathways-ensemble-analysis` package (`pea`).
 """
 import typing as tp
-from collections.abc import Iterable, Callable, Iterator
+from collections.abc import Iterable, Callable, Iterator, Mapping
 from enum import StrEnum
 import dataclasses
 import functools
@@ -21,8 +21,8 @@ from pandas.core.groupby import SeriesGroupBy
 import pathways_ensemble_analysis as pea
 from pathways_ensemble_analysis.criteria.base import Criterion
 
-from iamcompact_vetting import pyam_helpers
-from iamcompact_vetting.iam.dims import (
+from .. import pyam_helpers
+from .dims import (
     IamDimNames,
     DIM,
     UnknownDimensionNameError,
@@ -206,8 +206,8 @@ class TimeseriesRefCriterion(Criterion):
         `('model', 'scenario')`.
     rating_function : callable, optional
         The function to use to rate the comparison values. This function should
-        take a `pandas.Series` and return a single value. Optional, defaults to
-        absolute max.
+        take and return single numbers. Optional, by default equals the identity
+        function.
     dim_names : dim.IamDimNames, optional
         The dimension names of the reference `IamDataFrame`s used for reference
         and to be vetted. Optional, defaults to `dims.DIM`
@@ -254,8 +254,7 @@ class TimeseriesRefCriterion(Criterion):
             time_agg: AggFuncArg,
             agg_dim_order: AggDimOrder | str = AggDimOrder.REGION_FIRST,
             broadcast_dims: Iterable[str] = ('model', 'scenario'),
-            rating_function: Callable[[pd.Series], pd.Series] = \
-                lambda s: s.abs().max(),
+            rating_function: Callable[[float], float] = lambda x: x,
             dim_names: IamDimNames = DIM,
             *args,
             **kwargs,
@@ -275,7 +274,6 @@ class TimeseriesRefCriterion(Criterion):
                                             'of `reference.dimensions`')
         self.dim_names: IamDimNames = dim_names
         self.broadcast_dims: list[str] = list(broadcast_dims)
-        self.rating_function = rating_function
         super().__init__(
             criterion_name=criterion_name,
             region='*',
@@ -332,13 +330,19 @@ class TimeseriesRefCriterion(Criterion):
         the `__init__` method.
         """
         if self.agg_dim_order == AggDimOrder.REGION_FIRST:
-            return self._aggregate_region(self._aggregate_time(s))
-        if self.agg_dim_order == AggDimOrder.TIME_FIRST:
             return self._aggregate_time(self._aggregate_region(s))
+        if self.agg_dim_order == AggDimOrder.TIME_FIRST:
+            return self._aggregate_region(self._aggregate_time(s))
         raise RuntimeError(f'Unknown `agg_dim_order` {self.agg_dim_order}.')
     ###END def TimeseriesRefCriterion.aggregate_time_and_region
 
-    def compare(self, iamdf: pyam.IamDataFrame) -> pd.Series:
+    def compare(
+            self,
+            iamdf: pyam.IamDataFrame,
+            filter: tp.Optional[Mapping[str, tp.Any]] = None,
+            join: tp.Literal['inner', 'outer', 'reference', 'input', None] \
+                = None,
+    ) -> pd.Series:
         """Return comparison values for the given `IamDataFrame`.
 
         This method returns the comparison values for the given `IamDataFrame`,
@@ -355,14 +359,84 @@ class TimeseriesRefCriterion(Criterion):
         ----------
         iamdf : pyam.IamDataFrame
             The `IamDataFrame` to get comparison values for.
+        filter : Mapping[str, tp.Any], optional
+            Filter to apply to the reference data `self.reference` before
+            performing the comparison. Should be a dict that can be expanded
+            (`**filter`) and passed to `self.reference.filter`.
+        join : `"inner"`, `"outer"`, `"reference"`, `"input"` or `None`
+            Whether and how to join the reference data and the input `iamdf`
+            before comparing. The operation acts similarly to a join or merge,
+            and is applied after broadcasting and filtering (if `filter` is
+            specified) the reference data, but before comparing. If `join` is
+            specified (i.e., not `None`), the output will in most cases have the
+            same index as that resulting from the join operation on the `model`,
+            `scenario`, `region`, `variable` and `year` columns. The `unit`
+            column is ignored, in order to avoid treating variables that have
+            different units in `iamdf` and in the reference data as distinct.
+            Note that this can cause problems if either data set has more than
+            one unit for the same combination of model, scenario, region and
+            variable, but this probably should not occur in practice unless
+            there is something wrong or not standards-compliant with the data.
+            The valid values are:
+                - `"inner"`: Use the intersection of the indexes of the `iamdf`
+                  and the `reference` timeseries.
+                - `"outer"`: Use the union of the indexes of the `iamdf` and the
+                  `reference` timeseries.
+                - `"reference"`: Use the index of the `reference` timeseries
+                - `"input"`: Use the index of the `iamdf` timeseries
+                - `None`: Do not perform any join, just perform the comparison
+                  operation directly. If `self.comparison_function` is a plain
+                  arithmetic operator or other binary operator, the result will
+                  in most cases be the same as for `"outer"`, except possibly
+                  for ordering.
+            In all cases when referring to the index of `reference`, the index
+            of `self.reference` after broadcasting and filtering is meant. For
+            `outer` and `inner`, the resulting index will usually be ordered in
+            the same way as `iamdf`, though the internal sorting of
+            `pyam.IamDataFrame` may change this.
 
         Returns
         -------
         pd.Series
             The comparison values for the given `IamDataFrame`.
         """
-        ref = pyam_helpers.broadcast_dims(self.reference, iamdf,
-                                          self.broadcast_dims)
+        reference: pyam.IamDataFrame
+        if filter is not None:
+            reference = self.reference.filter(**filter)  # pyright: ignore[reportAssignmentType]
+        else:
+            reference = self.reference
+        ref = pyam_helpers.broadcast_dims(reference, iamdf, self.broadcast_dims)
+        if join is not None:
+            _ref_data: pd.Series = \
+                pyam_helpers.as_pandas_series(ref, copy=False)
+            _ref_data_df: pd.DataFrame = _ref_data.reset_index(DIM.UNIT)
+            _iamdf_data: pd.Series = \
+                pyam_helpers.as_pandas_series(iamdf, copy=False)
+            _iamdf_data_df: pd.DataFrame = _iamdf_data.reset_index(DIM.UNIT)
+            _join_index: pd.Index
+            if join == 'inner':
+                _join_index = \
+                    _ref_data_df.index.intersection(_iamdf_data_df.index,
+                                                    sort=False)
+            elif join == 'outer':
+                _join_index = \
+                    _ref_data_df.index.union(_iamdf_data_df.index, sort=False)
+            elif join == 'reference':
+                _join_index = _ref_data_df.index
+            elif join == 'input':
+                _join_index = _iamdf_data_df.index
+            else:
+                raise ValueError(f'Unknown join value {join}.')
+            ref = pyam.IamDataFrame(
+                data=_ref_data_df.reindex(_join_index) \
+                    .set_index(DIM.UNIT, append=True) \
+                        .reorder_levels(_ref_data.index.names),
+            )
+            iamdf = pyam.IamDataFrame(
+                data=_iamdf_data_df.reindex(_join_index) \
+                    .set_index(DIM.UNIT, append=True) \
+                        .reorder_levels(_iamdf_data.index.names),
+            )
         return self.comparison_function(ref, iamdf)
     ###END def TimeseriesRefCriterion.get_values
 
@@ -433,3 +507,96 @@ def pyam_series_comparison(
         return decorator
     return decorator(func)
 ###END def pyam_series_comparison
+
+
+def get_diff_comparison(
+        absolute: bool = False,
+        match_units: tp.Optional[bool] = None,
+) -> Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]:
+    """Get comparison function for difference between reference and data 
+
+    Parameters
+    ----------
+    absolute : bool, optional
+        Whether to return the absolute difference rather than the signed
+        difference. If False, negative numbers denote that the reference is
+        greater than the data. Optional, by default False.
+    match_units : bool or None, optional
+        Whether to ensure that the units of the reference and data are
+        consistent. If None, the default of the `pyam_series_comparison`
+        function decorator will be used. Optional, by default None.
+
+    Returns
+    -------
+    Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]
+        The comparison function.
+    """
+    diff_func: Callable[[pd.Series, pd.Series], pd.Series] = \
+        (lambda _ref, _data: _data - _ref) if not absolute \
+            else (lambda _ref, _data: (_data - _ref).abs())
+    if match_units is None:
+        return pyam_series_comparison(diff_func)
+    else:
+        return pyam_series_comparison(diff_func, match_units=match_units)
+###END def get_diff_comparison
+
+def get_ratio_comparison(
+        div_by_zero_value: tp.Optional[float] = None,
+        zero_by_zero_value: tp.Optional[float] = None,
+        match_units: tp.Optional[bool] = None,
+) -> Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]:
+    """Get comparison function for ratio between reference and data.
+
+    The returned function divides the data by the reference, i.e., gives 1.0
+    where they are equal, less than 1.0 where the reference is greater than the
+    data, and greater than 1.0 where the reference is less than the data.
+    Subtract 1 and multiply by 100 to get the percentage difference.
+
+    The function allows the user to specify how division by zero should be
+    handled, i.e., in the case that a reference data point is zero, both in the
+    case that the input data point (the numerator) is itself zero and in the
+    case that it is non-zero, through the parameters `div_by_zero_value` and
+    `zero_by_zero_value`, respectively. If a number is specified for these
+    parameters, that number will be used in all cases of the corresponding type
+    of zero-division. If they are None, the function will use whichever value
+    is returned by `pandas` when dividing one `Series` by another that contains
+    zero values.
+
+    Parameters
+    ----------
+    div_by_zero_value : float, optional
+        Value to use when dividing a non-zero value by zero. Optional, by
+        default None (i.e., use the number returned by `pandas` when dividing by
+        a Series that contains zero values). NB! This parameter is only used
+        when a *non*-zero value is divided by zero. For zero-by-zero divisions,
+        use the `zero_by_zero_value` parameter.
+    zero_by_zero_value : float, optional
+        Value to use when dividing zero by zero. Optional, by default None.
+    match_units : bool or None, optional
+        Whether to ensure that the units of the reference and data are
+        consistent. If None, the default of the `pyam_series_comparison`
+        function decorator will be used. Optional, by default None.
+
+    Returns
+    -------
+    Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]
+        The comparison function.
+    """
+    def _division_func(_ref: pd.Series, _data: pd.Series) -> pd.Series:
+        _div_series: pd.Series = _data / _ref
+        if div_by_zero_value is not None:
+            _div_series = _div_series.mask(
+                (_ref == 0.0) & (_data != 0.0),
+                other=div_by_zero_value,
+            )
+        if zero_by_zero_value is not None:
+            _div_series = _div_series.mask(
+                (_ref == 0.0) & (_data == 0.0),
+                other=zero_by_zero_value,
+            )
+        return _div_series
+    if match_units is None:
+        return pyam_series_comparison(_division_func)
+    else:
+        return pyam_series_comparison(_division_func, match_units=match_units)
+###END def get_ratio_comparison
