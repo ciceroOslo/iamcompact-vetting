@@ -211,7 +211,7 @@ class ResultOutput(
             ] = None,
             prepare_output_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
             write_output_kwargs: tp.Optional[tp.Dict[str, tp.Any]] = None,
-    ) -> WriteReturnTypeVar:
+    ) -> tuple[OutputDataTypeVar, WriteReturnTypeVar]:
         """Write the results to the format written by `writer`.
 
         Parameters
@@ -244,7 +244,9 @@ class ResultOutput(
             criteria=criteria,
             **prepare_output_kwargs,
         )
-        return self.write_output(output, writer, **write_output_kwargs)
+        write_returnval: WriteReturnTypeVar = \
+            self.write_output(output, writer, **write_output_kwargs)
+        return (output, write_returnval)
     ###END def ResultOutput.write_results
 
 ###END abstract class ResultOutput
