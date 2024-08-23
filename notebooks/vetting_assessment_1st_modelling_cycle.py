@@ -209,75 +209,35 @@ iam_df = iam_df.rename(variable={'GDP': 'GDP|PPP'})  # pyright: ignore[reportAss
 # The cells below assess whether the results are in range and how far they are
 # from the target value of each vetting criterion.
 #
-# First create lists with DataFrames/Series with the target results and the
-# values returned by `.get_values` for each vetting criterion.
-# %%
-_crit_target: CriterionTargetRange
-
-vetting_results: list[pd.DataFrame] = [
-    _crit_target.get_distances_in_range(iam_df)
-    for _crit_target in vetting_targets
-]
-
-criterion_values: list[pd.Series] = [
-    _crit_target.get_values(iam_df)
-    for _crit_target in vetting_targets
-]
-
-# %% [markdown]
-# Then combine the results into single DataFrame/Series.
+# The procedure uses `vetting_targets`, a list of `CriterionTargetRange`
+# instances, each of which assesses `iam_df` against one of the AR6 vetting
+# criteria. This list is used to produce a list of `CriterionTargetRangeOutput`
+# instances, each of which which uses one of the elements of `vetting_targets`
+# to produce output data structures, each of which are then written to an Excel
+# file using a `DataFrameExcelWriter` instance.
 #
-# `vetting_results_df` will be a DataFrame with a column `distance` for the
-# distance between the value for a given model/scenario and the target value
-# (in most cases `0` when the value is equal to the target, `+1.0` if it is at
-# the upper limit of the range, and `-1.0` if it is at the lower limit), and
-# a column `in_range` for whether each value is in the target range or not.
-#
-# `criterion_values_series` will be a Series with the same index as
-# `vetting_results_df`, and the values will be the criterion values for each
-# model/scenario.
-# %%
-vetting_results_df: pd.DataFrame = pd.concat(vetting_results, axis="index")
-
-criterion_values_series: pd.Series = pd.concat(criterion_values, axis="index")
-
 # %% [markdown]
-# Then turn `vetting_results_df` and `criterion_values_series` into DataFrames
-# with one column for each vetting criterion, to make it easier to read.
+# First create a `pandas.ExcelWriter` instance which will write to the output
+# Excel file. We need a common `pandas.ExcelWriter` instance for all of the
+# vetting criteria, so that we can write results to different worksheets of the
+# same Excel file.
 #
-# `vetting_results_df` will be split into two DataFrames,
-# `vetting_results_in_range_df` and `vetting_results_distance_df`, one for each
-# column in `vetting_results_df`.
-# %%
-vetting_results_in_range_df: pd.DataFrame = pd.DataFrame(
-    data={
-        _target_name: vetting_results_df["in_range"] \
-            .xs(_target_name, level='variable')
-        for _target_name in vetting_results_df.index.unique(level='variable')
-    }
-)
-
-vetting_results_distance_df: pd.DataFrame = pd.DataFrame(
-    data={
-        _target_name: vetting_results_df["distance"] \
-            .xs(_target_name, level='variable')
-        for _target_name in vetting_results_df.index.unique(level='variable')
-    }
-)
-
-criterion_values_df: pd.DataFrame = pd.DataFrame(
-    data={
-        _target_name: criterion_values_series \
-            .xs(_target_name, level='variable')
-        for _target_name in criterion_values_series.index.unique(level='variable')
-    }
-)
-
-# %% [markdown]
-# Try writing output with a `CriterionRangeTargetOutput` instance
+# The cell below creates a `pandas.ExcelWriter` instance that will write to the
+# file `vetting_results.xlsx` in the current working directory. Replace the file
+# name with an alternative one or with a Python `Path` object if you wish to
+# write to a differently named file or to a different directory.
 # %%
 results_excel_writer: pd.ExcelWriter = pd.ExcelWriter("vetting_results.xlsx",
                                               engine='xlsxwriter')
+
+# %% [markdown]
+# Then create the list of `CriterionTargetRangeOutput` instances, one for each
+# AR6 vetting criterion. Each instance needs a `DataFrameExcelWriter` instance
+# to write the results to a different worksheet of the same Excel file. The
+# worksheets will have the same name as the corresponding vetting criterion, but
+# with the name potentially shortened and with some characters substituted to
+# make sure that they are valid names for Excel worksheets.
+# %%
 vetting_results_outputs: list[
     CriterionTargetRangeOutput[DataFrameExcelWriter, None]
 ] = [
@@ -292,10 +252,20 @@ vetting_results_outputs: list[
 ]
 
 # %% [markdown]
-# Write the results
+# Finally, we call the `write_results` method of each of the
+# `CriterionTargetRangeOutput` instances, to compute the results and write them
+# to the Excel file.
+#
+# The results are also returned as `pandas.DataFrame` objects in the list
+# `vetting_results_frames`.
+#
+# `results_excel_writer.close()` must be called at the end to close and save the
+# Excel file.
 # %%
+vetting_results_frames: list[pd.DataFrame] = []
 for _output in vetting_results_outputs:
-    _output.write_results(iam_df)
+    _frame, _ = _output.write_results(iam_df)
+    vetting_results_frames.append(_frame)
 results_excel_writer.close()
 
 # %% [markdown]
