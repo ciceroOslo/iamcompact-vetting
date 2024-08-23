@@ -51,7 +51,10 @@ from iamcompact_vetting.output.base import CriterionTargetRangeOutput
 from iamcompact_vetting.output.timeseries import (
     TimeseriesComparisonFullDataOutput,
 )
-from iamcompact_vetting.output.excel import DataFrameExcelWriter
+from iamcompact_vetting.output.excel import (
+    DataFrameExcelWriter,
+    make_valid_excel_sheetname,
+)
 
 
 # %% [markdown]
@@ -273,13 +276,6 @@ criterion_values_df: pd.DataFrame = pd.DataFrame(
 # %% [markdown]
 # Try writing output with a `CriterionRangeTargetOutput` instance
 # %%
-def make_valid_excel_sheetname(s: str) -> str:
-    return s.replace(':', '-') \
-        .replace('*', ' ') \
-        .replace('/', '|') \
-        .replace('\\', '|') \
-        [0:31]
-
 results_excel_writer: pd.ExcelWriter = pd.ExcelWriter("vetting_results.xlsx",
                                               engine='xlsxwriter')
 vetting_results_outputs: list[

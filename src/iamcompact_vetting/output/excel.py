@@ -18,7 +18,7 @@ from io import BytesIO
 from abc import abstractmethod
 import functools
 import dataclasses
-from collections.abc import Sequence
+from collections.abc import Sequence, Mapping
 
 import pandas as pd
 import xlsxwriter
@@ -38,6 +38,90 @@ MAX_SHEET_NAME_LENGTH: tp.Final[int] = 31
 ExcelFileSpec: tp.TypeAlias \
     = Path | str | BytesIO
 
+
+SHEET_NAME_SUBSTITUTIONS: tp.Final[tp.Dict[str, str]] = {
+    "'": "`",
+    '*': 'x',
+    '/': '-',
+    '\\': '_',
+    ':': ';',
+    '?': '¿',
+    '[': '|',
+    ']': '|',
+}
+"""Dictionary mapping characters that are problematic in Excel sheet names to
+substitutions."""
+
+def make_valid_excel_sheetname(
+        name: str,
+        *,
+        substitutions: dict[str, str] = SHEET_NAME_SUBSTITUTIONS,
+        if_too_long: tp.Literal['raise', 'truncate'] = 'truncate',
+        max_length: int = MAX_SHEET_NAME_LENGTH,
+) -> str:
+    """Make a string a valid Excel worksheet name.
+    
+    The function replaces characters that cannot be used in an Excel worksheet
+    name with substitutions. The default substitutions are given in the
+    `SHEET_NAME_SUBSTITUTIONS` dictionary, and are as follows:
+
+        "'": "`"
+        '*': 'x'
+        '/': '-'
+        '\\': '_'
+        ':': ';'
+        '?': '¿'
+        '[': '|'
+        ']': '|'
+
+    The function optionally truncates the name if it is longer than
+    `max_length` (default 31), or raises a `ValueError` (determinded by the
+    `if_too_long` parameter).
+
+    Parameters
+    ----------
+    name : str
+        The name to check and make valid.
+    substitutions : dict[str, str], optional
+        A dictionary mapping characters that cannot be used in an Excel
+        worksheet name to substitutions. The default is given by the
+        `SHEET_NAME_SUBSTITUTIONS` dictionary.
+    if_too_long : {"raise", "truncate"}, optional
+        Whether to raise a `ValueError` if `name` is longer than `max_length`
+        characters, or to truncate it if it is too long. The default is
+        "truncate".
+    max_length : int, optional
+        The maximum length of the name. The default is 31 (which is the maximum
+        length supported by Excel at the time of writing).
+
+    Returns
+    -------
+    str
+        The name with all problematic characters replaced, and truncated if
+        `if_too_long` is "truncate" and `name` is too long.
+    """
+    if not isinstance(name, str):
+        raise TypeError('`name` must be a string.')
+    if not isinstance(max_length, int):
+        raise TypeError('`max_length` must be an integer.')
+    if substitutions is not SHEET_NAME_SUBSTITUTIONS:  # Check key and value types
+        if not all (isinstance(_key, str) for _key in substitutions.keys()):
+            raise TypeError('All keys in `substitutions` must be strings.')
+        if not all (isinstance(_val, str) for _val in substitutions.values()):
+            raise TypeError('All values in `substitutions` must be strings.')
+    for _key, _val in substitutions.items():
+        name = name.replace(_key, _val)
+    if len(name) > max_length:
+        if if_too_long == 'raise':
+            raise ValueError('`name` is too long.')
+        if if_too_long == 'truncate':
+            name = name[:max_length]
+        else:
+            raise ValueError(
+                '`if_too_long` must be one of "raise" or "truncate".'
+            )
+    return name
+###END def make_valid_excel_sheetname
 
 excel_style_class = functools.partial(
     dataclasses.dataclass,
