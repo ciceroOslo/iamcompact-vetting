@@ -394,7 +394,8 @@ gdp_pop_harmonization_assessment_output_direct: TimeseriesComparisonFullDataOutp
     writer=gdp_pop_harmonization_assessment_writer
 )
 # %%
-gdp_pop_harmonization_assessment_output_direct.write_results(iam_df_pop_gdp)
+gdp_pop_harmonization_result_direct, _ignore = \
+    gdp_pop_harmonization_assessment_output_direct.write_results(iam_df_pop_gdp)
 
 # %% [markdown]
 # Then close the workbook to save it.
