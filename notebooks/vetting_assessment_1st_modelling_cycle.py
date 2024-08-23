@@ -22,6 +22,17 @@
 # code to load and fix issues with those specific files. A separate notebbok
 # file, named `vetting_assessment`, can be used if you want to run the code with
 # other model results in hopefully non-problematic IAMC-formatted Excel file.
+#
+# In order to use this notebook, you will need to obtain a pickle file (used to
+# store Python objects) with the results of the 1st modelling cycle. The file
+# is called `data_dict.pkl` and must be placed in the folder
+# `notebooks/cycle1_study_model_outputs`. You must have access to the IAM
+# COMPACT SharePoint, and can find the file in the folder
+# `Documents > General > 2-Deliverables and Milestones > WP4 (Modelling –
+# Quantitative evidence in support of post-2030 Paris-compliant climate action) >
+# First Modelling Cycle`. You can download the pickle file directly using the
+# following link (provided you have access):
+# [https://epuntuagr.sharepoint.com/:u:/r/sites/iamcompact/Shared%20Documents/General/2-Deliverables%20and%20Milestones/WP4%20(Modelling%20%E2%80%93%20Quantitative%20evidence%20in%20support%20of%20post-2030%20Paris-compliant%20climate%20action)/First%20Modelling%20Cycle/data_dict.pkl?csf=1&web=1&e=ehfa45](https://epuntuagr.sharepoint.com/:u:/r/sites/iamcompact/Shared%20Documents/General/2-Deliverables%20and%20Milestones/WP4%20(Modelling%20%E2%80%93%20Quantitative%20evidence%20in%20support%20of%20post-2030%20Paris-compliant%20climate%20action)/First%20Modelling%20Cycle/data_dict.pkl?csf=1&web=1&e=ehfa45)
 
 # %% [markdown]
 # # Setup
@@ -77,6 +88,10 @@ pd.options.display.max_rows = 300
 # In this notebook specifically for the 1st modelling cycle, we use import a
 # separate module that loads precompiled data from the Excel files with results
 # from the 1st modelling cycle.
+#
+# *NB!* This will fail if you have not placed the pickle file 'data_dict.pkl'
+# with the required data in the `notebooks/cycle1_study_model_outputs`
+# subfolder. See the top of this file for explanations.
 # %%
 from cycle1_study_model_outputs.cycle1_results import joint_iamdf
 
