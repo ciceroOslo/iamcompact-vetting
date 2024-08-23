@@ -216,6 +216,24 @@ iam_df = iam_df.rename(variable={'GDP': 'GDP|PPP'})  # pyright: ignore[reportAss
 # to produce output data structures, each of which are then written to an Excel
 # file using a `DataFrameExcelWriter` instance.
 #
+# The output Excel file will contain one worksheet for each vetting criterion.
+# Each sheet has three index columns, with the name of a model/scenario pair
+# in the first two, and the name of the vetting criterion in the third. The
+# remaining columns are three value columns with vetting results:
+#
+# * `Is in target range`: A boolean value. `TRUE` if the model/scenario passes
+#   the vetting criterion, `FALSE` otherwise.
+# * `Rel. distance from target`: A measure of distance from the central target
+#   value of the vetting criterion. The value is defined differently for each
+#   criterion, and the exact value is not important, but it will generally be
+#   between -1 and +1 for model/scenario pairs that pass the criterion, and
+#   equal to 0 if it exactly hits the central value of the criterion. Values
+#   very close to -1 or +1 indicate that the value of the vetted variable is
+#   almost too low or too high to pass vetting.
+# * `Value`: The value of the vetted variable. See the documentation of the AR6
+#   vetting criteria for which variable or function of variables is evaluated in
+#   each case.
+#
 # %% [markdown]
 # First create a `pandas.ExcelWriter` instance which will write to the output
 # Excel file. We need a common `pandas.ExcelWriter` instance for all of the
