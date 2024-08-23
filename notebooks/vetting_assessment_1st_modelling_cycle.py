@@ -271,9 +271,26 @@ results_excel_writer.close()
 # %% [markdown]
 # # Assess agreement with harmonisation data for population and GDP.
 #
-# *NB!* The current code below is just a test at the moment. We use a
-# `TimeseriesRefCriterion` with the population and GDP data from harmonization,
-# to test whether it works with the model data.
+# The cells below will compare the model results in `iam_df` with the
+# harmonization data for population and GDP in each region that is defined
+# (has the same name) in both the harmonization data and in any of the models
+# in `iam_df`. Note that it does not currently take into account differences
+# in region definitions, or aggregate or translate model-specific region names
+# used in different models. This is intended for a future version.
+#
+# The results are returned as a `pandas.DataFrame` and written to an Excel file
+# as the ratio between the values in `iam_df` relative to the harmonization
+# data, for each data point that exists in both data sets. If a given model and
+# scenario agrees precisely with the harmonization data, the corresponding value
+# in the result will be 1.0. If the model has a smaller or greater value than
+# the harmonization data, the value in the result will be smaller or greater
+# than 1.0, respectively.
+#
+# Generally, for population and GDP, the ratios should be between 0.98 and 1.02
+# to be considered a close match. Values outside that range suggest that either
+# the model/scenario has used data that do not agree with the harmonization
+# data, or that there are issues with currency conversions, region definitions
+# or other inconsistencies or mistakes.
 #
 # First get just the GDP and Population variables from the data. Assert that it
 # is not None (not necessary, but if you use Python with a type checker, it is
