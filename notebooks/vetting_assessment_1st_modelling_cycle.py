@@ -44,6 +44,7 @@
 # %%
 from pathlib import Path
 import re
+from collections.abc import Mapping
 
 import pyam
 import pandas as pd
@@ -58,12 +59,16 @@ from iamcompact_vetting.targets.iamcompact_harmonization_targets import(
 from iamcompact_vetting.targets.target_classes import(
     CriterionTargetRange,
 )
-from iamcompact_vetting.output.base import CriterionTargetRangeOutput
+from iamcompact_vetting.output.base import (
+    CriterionTargetRangeOutput,
+    MultiCriterionTargetRangeOutput,
+)
 from iamcompact_vetting.output.timeseries import (
     TimeseriesComparisonFullDataOutput,
 )
 from iamcompact_vetting.output.excel import (
     DataFrameExcelWriter,
+    MultiDataFrameExcelWriter,
     make_valid_excel_sheetname,
 )
 
@@ -226,10 +231,10 @@ iam_df = iam_df.rename(variable={'GDP': 'GDP|PPP'})  # pyright: ignore[reportAss
 #
 # The procedure uses `vetting_targets`, a list of `CriterionTargetRange`
 # instances, each of which assesses `iam_df` against one of the AR6 vetting
-# criteria. This list is used to produce a list of `CriterionTargetRangeOutput`
-# instances, each of which which uses one of the elements of `vetting_targets`
-# to produce output data structures, each of which are then written to an Excel
-# file using a `DataFrameExcelWriter` instance.
+# criteria. This list is used to produce a list of `MultiCriterionTargetRangeOutput`
+# instance, which uses `vetting_targets`to produce output DataFrames, each of 
+# which are then written as a worksheet to an Excel file using a
+# `MultiDataFrameExcelWriter` instance.
 #
 # The output Excel file will contain one worksheet for each vetting criterion.
 # Each sheet has three index columns, with the name of a model/scenario pair
@@ -261,44 +266,40 @@ iam_df = iam_df.rename(variable={'GDP': 'GDP|PPP'})  # pyright: ignore[reportAss
 # write to a differently named file or to a different directory.
 # %%
 results_excel_writer: pd.ExcelWriter = pd.ExcelWriter("vetting_results.xlsx",
-                                              engine='xlsxwriter')
+                                                      engine='xlsxwriter')
 
 # %% [markdown]
-# Then create the list of `CriterionTargetRangeOutput` instances, one for each
-# AR6 vetting criterion. Each instance needs a `DataFrameExcelWriter` instance
-# to write the results to a different worksheet of the same Excel file. The
-# worksheets will have the same name as the corresponding vetting criterion, but
-# with the name potentially shortened and with some characters substituted to
-# make sure that they are valid names for Excel worksheets.
+# Then create the `MultiCriterionTargetRangeOutput` instance for the
+# AR6 vetting criteria. The instance needs a `MultiDataFrameExcelWriter`
+# instance # to write the results to different worksheets of the same Excel
+# file. The # worksheets will have the same name as the corresponding vetting
+# criterion, but with the name potentially shortened and with some characters
+# substituted to make sure that they are valid names for Excel worksheets.
 # %%
-vetting_results_outputs: list[
-    CriterionTargetRangeOutput[DataFrameExcelWriter, None]
-] = [
-    CriterionTargetRangeOutput(
-        criteria=_crit_target,
-        writer=DataFrameExcelWriter(
-            results_excel_writer,
-            sheet_name=make_valid_excel_sheetname(_crit_target.name)
-        )
-    )
-    for _crit_target in vetting_targets
-]
+vetting_results_output: \
+        MultiCriterionTargetRangeOutput[MultiDataFrameExcelWriter] \
+    = MultiCriterionTargetRangeOutput(
+        criteria={
+            make_valid_excel_sheetname(_crit.name): \
+                _crit for _crit in vetting_targets},
+        writer=MultiDataFrameExcelWriter(results_excel_writer),
+)
 
 # %% [markdown]
-# Finally, we call the `write_results` method of each of the
-# `CriterionTargetRangeOutput` instances, to compute the results and write them
-# to the Excel file.
+# Finally, we call the `write_results` method of the
+# `MultiCriterionTargetRangeOutput` instance, to compute the results and write
+# them to the Excel file.
 #
-# The results are also returned as `pandas.DataFrame` objects in the list
-# `vetting_results_frames`.
+# The results are also returned as `pandas.DataFrame` objects in the dict
+# `vetting_results_frames`, whose keys are equal to the Excel worksheet names
+# (which in turn are equal to the names of the AR6 vetting criteria, shortened
+# and modified to be valid Excel worksheet names).
 #
 # `results_excel_writer.close()` must be called at the end to close and save the
 # Excel file.
 # %%
-vetting_results_frames: list[pd.DataFrame] = []
-for _output in vetting_results_outputs:
-    _frame, _ = _output.write_results(iam_df)
-    vetting_results_frames.append(_frame)
+vetting_results: Mapping[str, pd.DataFrame]
+vetting_results, _ = vetting_results_output.write_results(iam_df)
 results_excel_writer.close()
 
 # %% [markdown]
