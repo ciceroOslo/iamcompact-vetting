@@ -204,7 +204,57 @@ class ToExcelKwargs(tp.TypedDict):
     engine_kwargs: dict
 ###END TypedDict class ToExcelKwargs
 
+
+def _get_excel_writer(file: ExcelFileSpec|pd.ExcelWriter) -> pd.ExcelWriter:
+    """Process `file` parameter into a `pandas.ExcelWriter` object.
+    
+    This function is used by the `__init__` methods of (at least)
+    `DataFrameExcelWriter` and `MultiDataFrameExcelWriter`, to produce a
+    `pandas.ExcelWriter` object from a `Path`, `str`, `BytesIO`, or
+    pre-existing `pandas.ExcelWriter` object (in the last case, the object is
+    simply returned as-is). If an `xlsxwriter.Workbook` object is passed in
+    a `TypeError` is raised.
+
+    Parameters
+    ----------
+    file : Path, str, BytesIO, or pandas.ExcelWriter
+        Path or str specifying the Excel file to write to, or a pre-existing
+        `xlsxwriter.Workbook` or `pandas.ExcelWriter` object. Can also be an
+        in-memory `BytesIO` object.
+    """
+    if isinstance(file, pd.ExcelWriter):
+        if not isinstance(file.book, Workbook):
+            raise ValueError(
+                'When using a `pandas.ExcelWriter` object for writers that '
+                'produce Excel files from DataFrames, it must use the '
+                '`xlsxwriter` engine and have `.book` attribute that is an '
+                'instance of `xlsxwriter.Workbook`.'
+            )
+        return file
+    if isinstance(file, Workbook):
+        raise TypeError(
+            'Writer objects that produce Excel files from DataFrames do not '
+            'support using a pre-existing `xlsxwriter.Workbook` object. '
+            'If you need that, you must first create a `pandas.ExcelWriter` '
+            'instance with `xlsxwriter` as the engine, and then pass that to '
+            'the writer `__init__` method. Then, for other contexts where you '
+            'need a `xlsxwriter.Workbook` object, use the `.book` attribute of '
+            'the `pandas.ExcelWriter` instance that you created.'
+        )
+    else:
+        excel_writer: pd.ExcelWriter = pd.ExcelWriter(file, engine='xlsxwriter')
+        if not isinstance(excel_writer.book, Workbook):
+            raise RuntimeError(
+                'The `pandas.ExcelWriter` object that was created using '
+                '`engine="xlsxwriter"` has a `.book` attribute that is not an '
+                'instance of `xlsxwriter.Workbook`. This should not be '
+                'possible.'
+            )
+        return excel_writer
+###END def _get_excel_writer
+
 class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
+    """Class for writing results from a DataFrame to an Excel file worksheet."""
 
     _sheet_name: str
 
@@ -221,7 +271,7 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
         file : Path, str, BytesIO, or pandas.ExcelWriter
             Path or str specifying the Excel file to write to, or a pre-existing
             `xlsxwriter.Workbook` or `pandas.ExcelWriter` object. Can also write
-            to an in-memory `BytesIO` object.If using a `pandas.ExcelWriter`
+            to an in-memory `BytesIO` object. If using a `pandas.ExcelWriter`
             object, it must use `xlsxwriter` as its engine.
         sheet_name : str
             The name of the sheet to write the data to.
@@ -237,29 +287,9 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
             than `MAX_SHEET_NAME_LENGTH`, you will almost certainly get an error
             when you attempt to write the data to the workbook.
         """
-        if isinstance(file, pd.ExcelWriter):
-            if not isinstance(file.book, Workbook):
-                raise ValueError(
-                    'When using a `pandas.ExcelWriter` object, its `.book` '
-                    'attribute must be an `xlsxwriter.Workbook` object, i.e., '
-                    'it must use `xlsxwriter` as its engine.'
-                )
-            self.excel_writer: pd.ExcelWriter = file
-            super().__init__(file=file.book)
-        elif isinstance(file, Workbook):
-            raise TypeError(
-                '`DataFrameExcelWriter` does not support using an existing '
-                '`xlsxwriter.Workbook` instance. If you need this '
-                'functionality, instead of creating the `Workbook` instance '
-                'directly, you need to create a `pandas.ExcelWriter` object '
-                'with `engine="xlsxwriter"` and pass that to this method. '
-                'You can then get the `Workbook` instance from the '
-                '`.book` attribute of the `pandas.ExcelWriter` object.'
-            )
-        else:
-            self.excel_writer: pd.ExcelWriter = \
-                pd.ExcelWriter(file, engine='xlsxwriter')
-            super().__init__(file=self.excel_writer.book)
+        self.excel_writer: pd.ExcelWriter = _get_excel_writer(file)
+        assert isinstance(self.excel_writer.book, Workbook)
+        super().__init__(file=self.excel_writer.book)
         if check_sheet_name_length:
             self.sheet_name = sheet_name
         else:
@@ -317,6 +347,10 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
         if sheet_name is None:
             if 'sheet_name' in to_excel_kwargs:
                 sheet_name = to_excel_kwargs.pop('sheet_name')
+                if not isinstance(sheet_name, str):
+                    raise TypeError(
+                        '`sheet_name` must be a string. '
+                    )
             else:
                 sheet_name = self.sheet_name
         if 'merge_cells' not in to_excel_kwargs:
@@ -334,3 +368,35 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
     ###END def DataFrameExcelWriter.write
 
 ###END class DataFrameExcelWriter
+
+
+class MultiDataFrameExcelWriter(
+    ExcelWriterBase[Mapping[str, pd.DataFrame], None]
+):
+    """Writes multiple DataFrames to separate sheets in an Excel file.
+    
+    This class is designed to take a mapping from sheet names to
+    `pandas.DataFrame` objects and write them to separate sheets in an
+    Excel file, using multiple `DataFrameExcelWriter` objects.
+    """
+
+    def __init__(
+            self,
+            file: ExcelFileSpec | pd.ExcelWriter,
+            style: tp.Optional[ExcelDataFrameStyle] = None,
+            check_sheet_name_length: bool = True,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        file : str, Path, BytesIO, or pandas.ExcelWriter
+            Path or str specifying the Excel file to write to, or a pre-existing
+            `xlsxwriter.Workbook` or `pandas.ExcelWriter` object. Can also write
+            to an in-memory `BytesIO` object. If using a `pandas.ExcelWriter`
+            object, it must use `xlsxwriter` as its engine.
+        style : ExcelDataFrameStyle, optional
+            Style specifications for writing DataFrames to an Excel file.
+            Optional, defaults to None.
+        check_sheet_name_length : bool, optional
+            Check that the `sheet_name` passed to `__init__` is not longer
+        """
