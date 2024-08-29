@@ -24,7 +24,7 @@ ResultsWriter
 import typing as tp
 from abc import ABC, abstractmethod
 from enum import StrEnum
-from collections.abc import Sequence
+from collections.abc import Sequence, Mapping
 
 import pyam
 import pandas as pd
@@ -314,3 +314,58 @@ class CriterionTargetRangeOutput(
             results_df = results_df.rename(columns=column_titles)
         return results_df
     ###END def CriterionTargetRangeOutput.prepare_output
+
+###END class CriterionTargetRangeOutput
+
+
+DataFrameMappingWriterTypeVar = tp.TypeVar(
+    'DataFrameMappingWriterTypeVar',
+    bound=ResultsWriter[Mapping[str, pd.DataFrame], tp.Any],
+)
+
+class MultiCriterionTargetRangeOutput(
+        ResultOutput[
+            Mapping[str, CriterionTargetRange],
+            pyam.IamDataFrame,
+            Mapping[str, pd.DataFrame],
+            DataFrameMappingWriterTypeVar,
+            tp.Any,
+        ],
+):
+    """Class to make output for multiple CriterionTargetRange instances.
+
+    The class takes a dictionary of `CriterionTargetRangeOutput` instances with
+    str names as keys, and returns a dictionary of DataFrames, each produced
+    using a `CriterionTargetRange` instance to produce the given DataFrame.
+    """
+
+    def prepare_output(
+            self,
+            data: pyam.IamDataFrame,
+            /,
+            criteria: tp.Optional[Mapping[str, CriterionTargetRange]] = None,
+            *,
+            columns: Sequence[CTCol] = (
+                CTCol.INRANGE,
+                CTCol.DISTANCE,
+                CTCol.VALUE,
+            ),
+            column_titles: tp.Optional[tp.Dict[CTCol, str]] = None,
+    ) -> Mapping[str, pd.DataFrame]:
+        """TODO: NEED TO ADD PROPER DOCSTRING"""
+        if criteria is None:
+            criteria = self.criteria
+        return {
+            _name: CriterionTargetRangeOutput(
+                criteria=_criterion,
+                writer=self.writer,
+            ).prepare_output(
+                data,
+                columns=columns,
+                column_titles=column_titles,
+            )
+            for _name, _criterion in criteria.items()
+        }
+    ###END def MultiCriterionTargetRangeOutput.prepare_output
+
+###END class MultiCriterionTargetRangeOutput

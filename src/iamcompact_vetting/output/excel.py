@@ -450,7 +450,7 @@ class MultiDataFrameExcelWriter(
                 file=self.excel_writer,
                 sheet_name=_sheet_name,
                 style=self.style,
-                **to_excel_kwargs
+                check_sheet_name_length=self.check_sheet_name_length,
             )
             _writer.write(_df, to_excel_kwargs=to_excel_kwargs)
     ###END def MultiDataFrameExcelWriter.write
