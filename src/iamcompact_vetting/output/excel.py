@@ -380,6 +380,8 @@ class MultiDataFrameExcelWriter(
     Excel file, using multiple `DataFrameExcelWriter` objects.
     """
 
+    _close_after_write: bool
+
     def __init__(
             self,
             file: ExcelFileSpec | pd.ExcelWriter,
@@ -398,5 +400,59 @@ class MultiDataFrameExcelWriter(
             Style specifications for writing DataFrames to an Excel file.
             Optional, defaults to None.
         check_sheet_name_length : bool, optional
-            Check that the `sheet_name` passed to `__init__` is not longer
+            Check that the sheet names passed to `write` are not longer than the
+            maximum supported by Excel (31 characters, set in the
+            `MAX_SHEET_NAME_LENGTH` constant). Optional, defaults to True.
         """
+        if isinstance(file, pd.ExcelWriter):
+            self._close_after_write = False
+        else:
+            self._close_after_write = True
+        self.excel_writer: pd.ExcelWriter = _get_excel_writer(file)
+        assert isinstance(self.excel_writer.book, Workbook)
+        super().__init__(file=self.excel_writer.book)
+        self.check_sheet_name_length: bool = check_sheet_name_length
+        self.style: ExcelDataFrameStyle|None = style
+    ###END def MultiDataFrameExcelWriter.__init__
+
+    def write(
+            self,
+            data: Mapping[str, pd.DataFrame],
+            /,
+            to_excel_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+    ) -> None:
+        """Write DataFrames to separate sheets in Excel file.
+        
+        Parameters
+        ----------
+        data : Mapping[str, pd.DataFrame]
+            A mapping from sheet names to `pandas.DataFrame` objects. Each
+            DataFrame will be written to the corresponding sheet in the Excel
+            file, using a `DataFrameExcelWriter` object that is created
+            internally.
+        to_excel_kwargs : dict, optional
+            Additional keyword arguments to pass to `pd.DataFrame.to_excel`.
+            Optional, defaults to None. The same keyword arguments are passed
+            to each `DataFrameExcelWriter` object and thus used for all
+            worksheets. The `sheet_name` argument is ignored if it is present.
+        """
+        if to_excel_kwargs is None:
+            to_excel_kwargs = dict()
+        if self.check_sheet_name_length:
+            for _sheet_name in data.keys():
+                if len(_sheet_name) > MAX_SHEET_NAME_LENGTH:
+                    raise ValueError(
+                        f'Sheet name "{_sheet_name}" is longer than the '
+                        f'maximum allowed length of {MAX_SHEET_NAME_LENGTH} '
+                    )
+        for _sheet_name, _df in data.items():
+            _writer: DataFrameExcelWriter = DataFrameExcelWriter(
+                file=self.excel_writer,
+                sheet_name=_sheet_name,
+                style=self.style,
+                **to_excel_kwargs
+            )
+            _writer.write(_df, to_excel_kwargs=to_excel_kwargs)
+    ###END def MultiDataFrameExcelWriter.write
+
+###END class MultiDataFrameExcelWriter
