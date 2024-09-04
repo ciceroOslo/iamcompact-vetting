@@ -110,6 +110,21 @@ class AggDimOrder(StrEnum):
 ###END class AggDimOrder
 
 
+class AggDims(StrEnum):
+    """Which dimensions to aggregate over.
+
+    The enum is used by the `TimeseriesRefCriterion.get_values` method parameter
+    `agg_dims` to specify which dimensions to aggregate over, and may be used
+    by other methods that similarly need to specify whether to aggregate over
+    time, regions, or both.
+    """
+    TIME = 'time'
+    REGION = 'region'
+    TIME_AND_REGION = 'both'
+    NO_AGGREGATION = 'none'
+###END class AggDims
+
+
 class TimeseriesRefCriterion(Criterion):
     """Base class for criteria that compare IAM output timeseries.
 
@@ -443,9 +458,42 @@ class TimeseriesRefCriterion(Criterion):
     def get_values(
             self,
             file: pyam.IamDataFrame,
+            agg_dims: AggDims = AggDims.TIME_AND_REGION,
     ) -> pd.Series:
-        """Return comparison values aggregated over region and time."""
-        return self.aggregate_time_and_region(self.compare(file))
+        """Return comparison values aggregated over region and time.
+
+        Parameters
+        ----------
+        file : pyam.IamDataFrame
+            The `IamDataFrame` to get comparison values for.
+        agg_dims : AggDims, Optional
+            Which dimensions to aggregate over. Use an `AggDims` enum value or
+            a string value. Valid values are:
+                - `"time"`/`AggDims.TIME`: Aggregate over time
+                - `"region"`/`AggDims.REGION`: Aggregate over regions
+                - `"both"`/`AggDims.TIME_AND_REGION`: Aggregate over time and regions
+                - `"none"`/`AggDims.NONE`: Do not aggregate (NB! not `None`!)
+            The default is `"both"`. This is also the behavior that is expected
+            of the superclass `get_values` method. Using other options may
+            therefore result in unexpected behavior if used with other packages.
+            The `"none"` option is essentially the same as calling `.compare`.
+
+        Returns
+        -------
+        pd.Series
+            The comparison values for the given `IamDataFrame`.
+        """
+        match agg_dims:
+            case AggDims.TIME_AND_REGION:
+                return self.aggregate_time_and_region(self.compare(file))
+            case AggDims.TIME:
+                return self._aggregate_time(self.compare(file))
+            case AggDims.REGION:
+                return self._aggregate_region(self.compare(file))
+            case AggDims.NO_AGGREGATION:
+                return self.compare(file)
+            case _:
+                raise ValueError(f'Unknown agg_dims value {agg_dims}.')
     ###END def TimeseriesRefCriterion.get_values
 
 ###END class TimeseriesRefCriterion
