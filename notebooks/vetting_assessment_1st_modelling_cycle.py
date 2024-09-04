@@ -138,7 +138,9 @@ prometheus_CCS_df: pyam.IamDataFrame = iam_df.filter(
     model='PROMETHEUS V1', variable='Carbon Capture*',  # pyright: ignore[reportAssignmentType]
 )
 other_df: pyam.IamDataFrame = iam_df.filter(
-    model='PROMETHEUS V1', variable='Carbon Capture*', keep=False,  # pyright: ignore[reportAssignmentType]
+    model='PROMETHEUS V1', 
+    variable='Carbon Capture*',
+    keep=False,  # pyright: ignore[reportAssignmentType]
 )
 prometheus_rename_dict: dict[str, str] = {
     _varname: _varname.replace("Carbon Capture", "Carbon Sequestration|CCS")
@@ -306,43 +308,57 @@ results_excel_writer.close()
 # # Assess agreement with harmonisation data for population and GDP.
 #
 # The cells below will compare the model results in `iam_df` with the
-# harmonization data for population and GDP in each region that is defined
-# (has the same name) in both the harmonization data and in any of the models
-# in `iam_df`. Note that it does not currently take into account differences
-# in region definitions, or aggregate or translate model-specific region names
-# used in different models. This is intended for a future version.
+# harmonization data for population and GDP in each region that is defined (has
+# the same name) in both the harmonization data and in any of the models in
+# `iam_df`. Note that it does not currently take into account differences in
+# region definitions, or aggregate or translate model-specific region names used
+# in different models. This is intended for a future version.
 #
 # The results are returned as a `pandas.DataFrame` and written to an Excel file
-# as the ratio between the values in `iam_df` relative to the harmonization
-# data, for each data point that exists in both data sets. If a given model and
-# scenario agrees precisely with the harmonization data, the corresponding value
-# in the result will be 1.0. If the model has a smaller or greater value than
-# the harmonization data, the value in the result will be smaller or greater
-# than 1.0, respectively.
+# with two worksheets:
+# * `Ratios, full`: Shows the ratio between the values in `iam_df` relative to
+#     the harmonization data, for each data point that exists in both data sets
+#     for each year with no aggregation. Will be 1.0 values that are identical
+#     to the harmonization data.
+# * `Summary`: A table with summary results per model/scenario/region
+#     combination. The table has two columns:
+#     - `Pass`: Shows TRUE for model/scenario/region combinations that pass the
+#       vetting criterion. This usually requires that all data points be within
+#       2% of the target value, i.e., that the ratio is between 0.98 and 1.02.
+#     - `Max rel. diff`: The maximum absolute relative difference between the
+#       data value and harmonization data for the model/scenario/region
+#       combination. The number given is `maxdiff - 1`, where `maxdiff` is
+#       the ratio that differs most from 1.0 across all years. For example, if
+#       the most deviant data value is 10% higher than the harmonization data,
+#       `Max rel. diff` will be 0.1 (the ratio most different from 1.0 will be
+#       1.1). If it is 15% lower than the harmonization data, `Max rel. diff`
+#       will be -0.15 (the ratio most different from 1.0 will be 0.85).
 #
 # Generally, for population and GDP, the ratios should be between 0.98 and 1.02
 # to be considered a close match. Values outside that range suggest that either
 # the model/scenario has used data that do not agree with the harmonization
 # data, or that there are issues with currency conversions, region definitions
 # or other inconsistencies or mistakes.
-#
+
+# %%
 # First get just the GDP and Population variables from the data. Assert that it
 # is not None (not necessary, but if you use Python with a type checker, it is
 # needed to avoid a warning, since the `IamDataFrame.filter` method can return
 # None):
-# %%
 iam_df_pop_gdp = iam_df.filter(variable=['Population', 'GDP|PPP'])
 assert iam_df_pop_gdp is not None
 
 # %% [markdown]
-# Then define a Path to where you want to write an Excel file with the results
-# at the moment it writes it to the file `gdp_pop_harmonization_assessment.xlsx`
-# in the current working directory, but you can change this to your liking.
-# Consult the Python documentation for `pathlib.Path` if you are unfamiliar with
-# how to use Path objects.
+# Then create a `pandas.ExcelWriter` that later code will use to write to a
+# specified Excel file. At the moment, it writes to the file
+# `gdp_pop_harmonization_vetting.xlsx` in the current working directory, but
+# you can change this to your liking.
+
 # %%
-gdp_pop_harmonization_assessment_output_file: Path = \
-    Path.cwd() / 'gdp_pop_harmonization_assessment.xlsx'
+gdp_pop_results_excel_writer: pd.ExcelWriter = pd.ExcelWriter(
+        'gdp_pop_harmonization_vetting.xlsx',
+        engine='xlsxwriter',
+)
 
 # %% [markdown]
 # Then create a `DataFrameExcelWriter` instance that will do the actual writing
