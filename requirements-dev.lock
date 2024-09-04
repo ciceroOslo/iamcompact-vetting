@@ -497,6 +497,7 @@ ruamel-yaml==0.18.6
     # via gto
 ruamel-yaml-clib==0.2.8
     # via ruamel-yaml
+ruff==0.6.3
 scipy==1.14.0
     # via pyam-iamc
 scmrepo==3.3.7
