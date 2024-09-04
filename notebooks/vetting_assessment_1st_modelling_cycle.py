@@ -265,8 +265,8 @@ iam_df = iam_df.rename(variable={'GDP': 'GDP|PPP'})  # pyright: ignore[reportAss
 # name with an alternative one or with a Python `Path` object if you wish to
 # write to a differently named file or to a different directory.
 # %%
-results_excel_writer: pd.ExcelWriter = pd.ExcelWriter("vetting_results.xlsx",
-                                                      engine='xlsxwriter')
+results_excel_writer: pd.ExcelWriter = \
+    pd.ExcelWriter("ar6_vetting_results.xlsx", engine='xlsxwriter')
 
 # %% [markdown]
 # Then create the `MultiCriterionTargetRangeOutput` instance for the
