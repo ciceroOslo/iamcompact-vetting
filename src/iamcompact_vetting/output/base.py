@@ -34,6 +34,10 @@ from ..targets.target_classes import CriterionTargetRange
 CritTypeVar = tp.TypeVar('CritTypeVar')
 """TypeVar for the type of `Criterion` or `CriterionTargetRange` expected by a
 `ResultOutput` subclass."""
+CriterionTargetRangeTypeVar = tp.TypeVar(
+    'CriterionTargetRangeTypeVar',
+    bound=CriterionTargetRange,
+)
 OutputDataTypeVar = tp.TypeVar('OutputDataTypeVar')
 """TypeVar for the type of data to be output by a `ResultOutput` subclass
 through its `prepare_output` method, and to be written by a `ResultsWriter`
@@ -262,7 +266,7 @@ class CTCol(StrEnum):
 
 class CriterionTargetRangeOutput(
         ResultOutput[
-            CriterionTargetRange,
+            CriterionTargetRangeTypeVar,
             pyam.IamDataFrame,
             pd.DataFrame,
             WriterTypeVar,
@@ -271,26 +275,48 @@ class CriterionTargetRangeOutput(
 ):
     """TODO: NEED TO ADD PROPER DOCSTRING"""
 
-    def prepare_output(
+    _default_columns: Sequence[CTCol]
+    _default_column_titles: Mapping[CTCol, str]
+
+    def __init__(
             self,
-            data: pyam.IamDataFrame,
-            /,
-            criteria: tp.Optional[CriterionTargetRange] = None,
             *,
-            columns: Sequence[CTCol] = (
-                CTCol.INRANGE,
-                CTCol.DISTANCE,
-                CTCol.VALUE,
-            ),
-            column_titles: tp.Optional[tp.Dict[CTCol, str]] = None,
-    ) -> pd.DataFrame:
+            criteria: CriterionTargetRangeTypeVar,
+            writer: WriterTypeVar,
+            columns: tp.Optional[Sequence[CTCol]] = None,
+            column_titles: tp.Optional[Mapping[CTCol, str]] = None,
+    ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
-        if column_titles is None:
-            column_titles = {
+        super().__init__(criteria=criteria, writer=writer)
+        self._default_columns = columns if columns is not None else (
+            CTCol.INRANGE,
+            CTCol.DISTANCE,
+            CTCol.VALUE,
+        )
+        if column_titles is not None:
+            self._default_column_titles = column_titles
+        else:
+            self._default_column_titles = {
                 CTCol.INRANGE: 'Is in target range',
                 CTCol.DISTANCE: 'Rel. distance from target',
                 CTCol.VALUE: 'Value',
             }
+    ###END def CriterionTargetRangeOutput.__init__
+
+    def prepare_output(
+            self,
+            data: pyam.IamDataFrame,
+            /,
+            criteria: tp.Optional[CriterionTargetRangeTypeVar] = None,
+            *,
+            columns: tp.Optional[Sequence[CTCol]] = None,
+            column_titles: tp.Optional[Mapping[CTCol, str]] = None,
+    ) -> pd.DataFrame:
+        """TODO: NEED TO ADD PROPER DOCSTRING"""
+        if columns is None:
+            columns = self._default_columns
+        if column_titles is None:
+            column_titles = self._default_column_titles
         if criteria is None:
             criteria = self.criteria
         result_columns: list[pd.Series] = []
@@ -325,7 +351,7 @@ DataFrameMappingWriterTypeVar = tp.TypeVar(
 
 class MultiCriterionTargetRangeOutput(
         ResultOutput[
-            Mapping[str, CriterionTargetRange],
+            Mapping[str, CriterionTargetRangeTypeVar],
             pyam.IamDataFrame,
             Mapping[str, pd.DataFrame],
             DataFrameMappingWriterTypeVar,
@@ -339,31 +365,65 @@ class MultiCriterionTargetRangeOutput(
     using a `CriterionTargetRange` instance to produce the given DataFrame.
     """
 
+    _default_columns: Sequence[CTCol]
+    _default_column_titles: dict[CTCol, str]
+
+    def __init__(
+            self,
+            *,
+            criteria: Mapping[str, CriterionTargetRangeTypeVar],
+            writer: DataFrameMappingWriterTypeVar,
+            columns: tp.Optional[tp.Sequence[CTCol]] = None,
+            column_titles: tp.Optional[tp.Dict[CTCol, str]] = None,
+    ):
+        """TODO: NEED TO ADD PROPER DOCSTRING"""
+        super().__init__(criteria=criteria, writer=writer)
+        self._default_columns = columns if columns is not None else (
+            CTCol.INRANGE,
+            CTCol.DISTANCE,
+            CTCol.VALUE,
+        )
+        if column_titles is not None:
+            self._default_column_titles = column_titles
+        else:
+            self._default_column_titles = {
+                CTCol.INRANGE: 'Is in target range',
+                CTCol.DISTANCE: 'Rel. distance from target',
+                CTCol.VALUE: 'Value',
+            }
+    ###END def MultiCriterionTargetRangeOutput.__init__
+
     def prepare_output(
             self,
             data: pyam.IamDataFrame,
             /,
-            criteria: tp.Optional[Mapping[str, CriterionTargetRange]] = None,
+            criteria: tp.Optional[Mapping[str, CriterionTargetRangeTypeVar]] \
+                = None,
             *,
-            columns: Sequence[CTCol] = (
-                CTCol.INRANGE,
-                CTCol.DISTANCE,
-                CTCol.VALUE,
-            ),
-            column_titles: tp.Optional[tp.Dict[CTCol, str]] = None,
+            columns: tp.Optional[Mapping[str, Sequence[CTCol]]] = None,
+            column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
+                = None,
     ) -> Mapping[str, pd.DataFrame]:
         """TODO: NEED TO ADD PROPER DOCSTRING"""
         if criteria is None:
             criteria = self.criteria
+        if columns is None:
+            columns = {
+                _name: self._default_columns
+                for _name in criteria
+            }
+        if column_titles is None:
+            column_titles = {
+                _name: self._default_column_titles
+                for _name in criteria
+            }
         return {
             _name: CriterionTargetRangeOutput(
                 criteria=_criterion,
                 writer=self.writer,
-            ).prepare_output(
-                data,
-                columns=columns,
-                column_titles=column_titles,
-            )
+                columns=columns[_name],
+                column_titles=column_titles[_name],
+            ).prepare_output(data)
             for _name, _criterion in criteria.items()
         }
     ###END def MultiCriterionTargetRangeOutput.prepare_output
