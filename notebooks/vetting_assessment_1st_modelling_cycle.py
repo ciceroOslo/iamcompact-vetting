@@ -50,7 +50,7 @@ import pyam
 import pandas as pd
 
 from iamcompact_vetting.targets.ar6_vetting_targets import (
-    vetting_targets
+    vetting_targets as ar6_vetting_targets,
 )
 from iamcompact_vetting.targets.iamcompact_harmonization_targets import(
     IamCompactHarmonizationRatioCriterion,
@@ -231,7 +231,7 @@ iam_df = iam_df.rename(variable={'GDP': 'GDP|PPP'})  # pyright: ignore[reportAss
 # The cells below assess whether the results are in range and how far they are
 # from the target value of each vetting criterion.
 #
-# The procedure uses `vetting_targets`, a list of `CriterionTargetRange`
+# The procedure uses `ar6_vetting_targets`, a list of `CriterionTargetRange`
 # instances, each of which assesses `iam_df` against one of the AR6 vetting
 # criteria. This list is used to produce a list of `MultiCriterionTargetRangeOutput`
 # instance, which uses `vetting_targets`to produce output DataFrames, each of 
@@ -283,7 +283,7 @@ vetting_results_output: \
     = MultiCriterionTargetRangeOutput(
         criteria={
             make_valid_excel_sheetname(_crit.name): \
-                _crit for _crit in vetting_targets},
+                _crit for _crit in ar6_vetting_targets},
         writer=MultiDataFrameExcelWriter(results_excel_writer),
 )
 
