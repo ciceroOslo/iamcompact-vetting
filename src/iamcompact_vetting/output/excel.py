@@ -261,7 +261,7 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
     def __init__(
             self,
             file: ExcelFileSpec | pd.ExcelWriter,
-            sheet_name: str,
+            sheet_name: str = 'Sheet1',
             style: tp.Optional[ExcelDataFrameStyle] = None,
             check_sheet_name_length: bool = True,
     ) -> None:
@@ -326,6 +326,7 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
             self,
             data: pd.DataFrame,
             /,
+            *,
             sheet_name: tp.Optional[str] = None,
             to_excel_kwargs: tp.Optional[dict[str, tp.Any]] = None,
     ) -> None:
@@ -419,6 +420,10 @@ class MultiDataFrameExcelWriter(
             self,
             data: Mapping[str, pd.DataFrame],
             /,
+            *,
+            style: tp.Optional[
+                ExcelDataFrameStyle | dict[str, ExcelDataFrameStyle|None],
+            ] = None,
             to_excel_kwargs: tp.Optional[dict[str, tp.Any]] = None,
     ) -> None:
         """Write DataFrames to separate sheets in Excel file.
@@ -436,6 +441,15 @@ class MultiDataFrameExcelWriter(
             to each `DataFrameExcelWriter` object and thus used for all
             worksheets. The `sheet_name` argument is ignored if it is present.
         """
+        if style is None:
+            style = {_name: self.style for _name in data.keys()}
+        elif isinstance(style, ExcelDataFrameStyle):
+            style = {_name: style for _name in data.keys()}
+        elif not isinstance(style, Mapping):
+            raise TypeError(
+                f'`style` must be a `ExcelDataFrameStyle` or a mapping from '
+                f'sheet names to `ExcelDataFrameStyle` objects. '
+            )
         if to_excel_kwargs is None:
             to_excel_kwargs = dict()
         if self.check_sheet_name_length:
@@ -449,7 +463,7 @@ class MultiDataFrameExcelWriter(
             _writer: DataFrameExcelWriter = DataFrameExcelWriter(
                 file=self.excel_writer,
                 sheet_name=_sheet_name,
-                style=self.style,
+                style=style[_sheet_name],
                 check_sheet_name_length=self.check_sheet_name_length,
             )
             _writer.write(_df, to_excel_kwargs=to_excel_kwargs)
