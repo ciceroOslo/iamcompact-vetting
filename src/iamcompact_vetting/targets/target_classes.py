@@ -131,6 +131,7 @@ class CriterionTargetRange:
             criterion: Criterion,
             target: float,
             range: tp.Optional[tuple[float, float]|RelativeRange] = None,
+            *,
             unit: tp.Optional[str] = None,
             name: tp.Optional[str] = None,
             convert_value_units: tp.Optional[bool] = None,
