@@ -211,6 +211,12 @@ class TimeseriesRefCriterion(Criterion):
         Which order to apply aggregations in when calling `self.get_values`.
         Should be an `AggDimOrder` enum, or a string that is equal to one of
         the enum values. Defaults to `AggDimOrder.REGION_FIRST`.
+    default_agg_dims: AggDims or str, optional
+        Which dimensions out of time and region to aggregate over by default
+        when calling `self.get_values`. Should be an `AggDims` enum, or a string
+        that is equal to one of the enum values. See the docstring of
+        `self.get_values` for valid options. Defaults to `"both"`
+        (i.e., `AggDims.TIME_AND_REGION`).
     broadcast_dims : iterable of str, optional
         The dimensions to broadcast over when comparing the timeseries. This
         should be a subset of the dimensions of the `reference` timeseries.
@@ -268,6 +274,7 @@ class TimeseriesRefCriterion(Criterion):
             region_agg: AggFuncArg,
             time_agg: AggFuncArg,
             agg_dim_order: AggDimOrder | str = AggDimOrder.REGION_FIRST,
+            default_agg_dims: AggDims | str = AggDims.TIME_AND_REGION,
             broadcast_dims: Iterable[str] = ('model', 'scenario'),
             rating_function: Callable[[float], float] = lambda x: x,
             dim_names: IamDimNames = DIM,
@@ -281,6 +288,7 @@ class TimeseriesRefCriterion(Criterion):
         self._time_agg: AggFuncTuple = self._make_agg_func_tuple(time_agg)
         self._region_agg: AggFuncTuple = self._make_agg_func_tuple(region_agg)
         self.agg_dim_order: AggDimOrder = AggDimOrder(agg_dim_order)
+        self.default_agg_dims: AggDims = AggDims(default_agg_dims)
         # Raise ValueError if `broadcast_dims` is not a subset of `reference.dimensions`
         if any(
                 _dim not in reference.dimensions for _dim in broadcast_dims
@@ -458,7 +466,7 @@ class TimeseriesRefCriterion(Criterion):
     def get_values(
             self,
             file: pyam.IamDataFrame,
-            agg_dims: AggDims = AggDims.TIME_AND_REGION,
+            agg_dims: tp.Optional[AggDims] = None
     ) -> pd.Series:
         """Return comparison values aggregated over region and time.
 
@@ -473,16 +481,20 @@ class TimeseriesRefCriterion(Criterion):
                 - `"region"`/`AggDims.REGION`: Aggregate over regions
                 - `"both"`/`AggDims.TIME_AND_REGION`: Aggregate over time and regions
                 - `"none"`/`AggDims.NONE`: Do not aggregate (NB! not `None`!)
-            The default is `"both"`. This is also the behavior that is expected
-            of the superclass `get_values` method. Using other options may
-            therefore result in unexpected behavior if used with other packages.
-            The `"none"` option is essentially the same as calling `.compare`.
+            The default is `"both"`, unless a different default has been
+            specified using the `default_agg_dims` parameter of the `__init__`
+            method. This is also the behavior that is expected of the superclass
+            `get_values` method. Using other options may therefore result in
+            unexpected behavior if used with other packages.  The `"none"`
+            option is essentially the same as calling `.compare`.
 
         Returns
         -------
         pd.Series
             The comparison values for the given `IamDataFrame`.
         """
+        if agg_dims is None:
+            agg_dims = self.default_agg_dims
         match agg_dims:
             case AggDims.TIME_AND_REGION:
                 return self.aggregate_time_and_region(self.compare(file))
