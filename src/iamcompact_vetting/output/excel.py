@@ -422,7 +422,7 @@ class MultiDataFrameExcelWriter(
             /,
             *,
             style: tp.Optional[
-                ExcelDataFrameStyle | dict[str, ExcelDataFrameStyle|None],
+                ExcelDataFrameStyle | dict[str, ExcelDataFrameStyle|None]
             ] = None,
             to_excel_kwargs: tp.Optional[dict[str, tp.Any]] = None,
     ) -> None:
