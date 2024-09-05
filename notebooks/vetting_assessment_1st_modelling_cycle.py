@@ -53,8 +53,9 @@ from iamcompact_vetting.targets.ar6_vetting_targets import (
     vetting_targets as ar6_vetting_targets,
 )
 from iamcompact_vetting.targets.iamcompact_harmonization_targets import(
+    gdp_pop_harmonization_criterion,
     IamCompactHarmonizationRatioCriterion,
-    gdp_pop_harmonization_criterion
+    IamCompactHarmonizationTarget,
 )
 from iamcompact_vetting.targets.target_classes import(
     CriterionTargetRange,
@@ -278,13 +279,14 @@ results_excel_writer: pd.ExcelWriter = \
 # criterion, but with the name potentially shortened and with some characters
 # substituted to make sure that they are valid names for Excel worksheets.
 # %%
-vetting_results_output: \
-        MultiCriterionTargetRangeOutput[MultiDataFrameExcelWriter] \
-    = MultiCriterionTargetRangeOutput(
-        criteria={
-            make_valid_excel_sheetname(_crit.name): \
-                _crit for _crit in ar6_vetting_targets},
-        writer=MultiDataFrameExcelWriter(results_excel_writer),
+vetting_results_output: MultiCriterionTargetRangeOutput[
+        CriterionTargetRange,
+        MultiDataFrameExcelWriter
+] = MultiCriterionTargetRangeOutput(
+    criteria={
+        make_valid_excel_sheetname(_crit.name): \
+            _crit for _crit in ar6_vetting_targets},
+    writer=MultiDataFrameExcelWriter(results_excel_writer),
 )
 
 # %% [markdown]
@@ -353,6 +355,13 @@ assert iam_df_pop_gdp is not None
 # specified Excel file. At the moment, it writes to the file
 # `gdp_pop_harmonization_vetting.xlsx` in the current working directory, but
 # you can change this to your liking.
+
+# %% [markdown]
+# **Test cell**. This should be removed in production, and moved further down to
+# after the Excel part.
+gdp_pop_target: IamCompactHarmonizationTarget = IamCompactHarmonizationTarget(
+    criterion=gdp_pop_harmonization_criterion,
+)
 
 # %%
 gdp_pop_results_excel_writer: pd.ExcelWriter = pd.ExcelWriter(
