@@ -67,6 +67,35 @@ class ResultsWriter(ABC, tp.Generic[OutputDataTypeVar, WriteReturnTypeVar]):
         ...
 #END abstract class ResultsWriter
 
+
+class NoWriterError(Exception):
+    """Raised when the `.write` method of a `NoWriter` instance is called."""
+    pass
+###END abstract class ResultsWriter
+
+class NoWriter(ResultsWriter[tp.Any, None]):
+    """ResultsWriter that can be used when no writer is wanted.
+
+    If the `.write` method of this class is called, a `NoWriterError` is
+    raised.
+
+    Init Parameters
+    ---------------
+    message : str
+        Message to be printed when the `.write` method is called.
+    """
+    def __init__(
+            self,
+            *,
+            message: str = 'No writer has been set for this output.',
+    ):
+        self.message: str = message
+    ###END def NoWriter.__init__
+    def write(self, output_data: tp.Any) -> None:
+        raise NoWriterError(self.message)
+    ###END def NoWriter.write
+###END class NoWriter
+
 WriterTypeVar = tp.TypeVar('WriterTypeVar', bound=ResultsWriter, covariant=True)
 """TypeVar for the type of `ResultsWriter` subclass to be used by a
 `ResultOutput` subclass instance."""
