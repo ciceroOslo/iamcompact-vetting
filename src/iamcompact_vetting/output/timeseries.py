@@ -172,6 +172,8 @@ class TimeseriesRefComparisonAndTargetOutput(
                 ]
             ] = None,
             writer: tp.Optional[DataFrameMappingWriterTypeVar] = None,
+            full_comparison_key: tp.Optional[str] = None,
+            summary_key: tp.Optional[str] = None,
     ):
         """Init method.
 
@@ -232,6 +234,14 @@ class TimeseriesRefComparisonAndTargetOutput(
             one that is set. If either `timeseries_output` or `summary_output`
             is not set, the `writer` parameter is mandatory. If both are set,
             the `writer` parameter is ignored.
+        full_comparison_key : str, optional
+            The key to use for the full comparison data in the output dict
+            returned by the `prepare_output` method. Optional. If not set, the
+            default key "Full comparison" is used.
+        summary_key : str, optional
+            The key to use for the summary metrics in the output dict
+            returned by the `prepare_output` method. Optional. If not set, the
+            default key "Summary metrics" is used.
         """
         self.criteria: TimeseriesRefCriterionTypeVar = criteria
         self.target_range: CriterionTargetRangeTypeVar \
@@ -254,6 +264,11 @@ class TimeseriesRefComparisonAndTargetOutput(
                 target_range=self.target_range,
                 writer=writer,
             )
+        self.full_comparison_key: str = \
+            full_comparison_key if full_comparison_key is not None \
+                else 'Full comparison'
+        self.summary_key: str = summary_key if summary_key is not None \
+            else 'Summary metrics'
     ###END def TimeseriesComparisonOutput.__init__
 
     def prepare_output(
@@ -286,11 +301,12 @@ class TimeseriesRefComparisonAndTargetOutput(
         # `_summary_output` will call `self.criteria.get_values`, which
         # can be expensive. This should be fixed, maybe by enabling
         # `TimeseriesRefCriterion.get_values` to cache its return value.
-        full_comparison = self._full_data_output.prepare_output(data)
-        summary_metrics = self._summary_output.prepare_output(data)
+        full_comparison: pd.DataFrame = \
+            self.timeseries_output.prepare_output(data)
+        summary_metrics: pd.DataFrame = self.summary_output.prepare_output(data)
         return {
-            self._full_comparison_key: full_comparison,
-            self._summary_key: summary_metrics,
+            self.full_comparison_key: full_comparison,
+            self.summary_key: summary_metrics,
         }
     ###END def TimeseriesComparisonOutput.prepare_output
 
