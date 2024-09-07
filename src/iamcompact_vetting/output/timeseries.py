@@ -115,6 +115,21 @@ TimeseriesOutputTypeVar = tp.TypeVar(
 )
 
 
+class MissingDefaultTypeError(Exception):
+    """Exception raised when a default type is missing.
+
+    Used by the `TimeseriesRefFullAndSummaryOutput` class `__init__` method
+    when `target_range`, `timeseries_output` or `summary_output` is not set,
+    and the class attributes `target_range_default_type`,
+    `timeseries_output_default_type` or `summary_output_default_type`,
+    respectively, is not defined (i.e., the `__init__` method is being called
+    on `TimeseriesRefFullAndSummaryOutput` itself or on a subclass that does not
+    define these class attributes).
+    """
+    ...
+###END class MissingDefaultTypeError
+
+
 class TimeseriesRefComparisonAndTargetOutput(
     tp.Generic[
         TimeseriesRefCriterionTypeVar,
@@ -146,6 +161,10 @@ class TimeseriesRefComparisonAndTargetOutput(
     dictionary of the type described here.
     """
 
+    target_range_default_type: tp.Type[CriterionTargetRangeTypeVar]
+    timeseries_output_default_type: tp.Type[TimeseriesOutputTypeVar]
+    summary_output_default_type: tp.Type[SummaryOutputTypeVar]
+
     def __init__(
             self,
             *,
@@ -156,6 +175,9 @@ class TimeseriesRefComparisonAndTargetOutput(
                     CriterionTargetRangeTypeVar
                 ]
             ] = None,
+            target_range_type: tp.Optional[
+                tp.Type[CriterionTargetRangeTypeVar]
+            ] = None,
             target: tp.Optional[float] = None,
             range: tp.Optional[tuple[float, float] | RelativeRange] = None,
             distance_func: tp.Optional[Callable[[float], float]] = None,
@@ -165,11 +187,17 @@ class TimeseriesRefComparisonAndTargetOutput(
                     TimeseriesOutputTypeVar,
                 ]
             ] = None,
+            timeseries_output_type: tp.Optional[
+                tp.Type[TimeseriesOutputTypeVar]
+            ] = None,
             summary_output: tp.Optional[
                 tp.Callable[
                     [CriterionTargetRangeTypeVar],
                     SummaryOutputTypeVar,
                 ]
+            ] = None,
+            summary_output_type: tp.Optional[
+                tp.Type[SummaryOutputTypeVar]
             ] = None,
             writer: tp.Optional[DataFrameMappingWriterTypeVar] = None,
             full_comparison_key: tp.Optional[str] = None,
@@ -184,16 +212,26 @@ class TimeseriesRefComparisonAndTargetOutput(
         target_range : callable, optional
             A function that takes the `TimeseriesRefCriterion` instance passed
             through the `criteria` parameter and returns a
-            `CriterionTargetRange` instance. See the docstring of
-            `CriterionTargetRangeOutput` for details. Optional. By default uses
-            a `CriterionTargetRange` instance using the target, range and
-            optionally `distance_func` parameters passed through the `target`,
-            `range` and `distance_func` parameters. To access other parameters
-            of the `CriterionTargetRange` init method, use a partial function of
-            `CriterionTargetRange` as the `target_range` parameter, or pass a
-            lambda that calls `CriterionTargetRange` with the parameters set to
-            the desired values. If `target_range` is not set, the parameters
-            `target` and `range` must be set.
+            `CriterionTargetRange` or subclass instance. See the docstring of
+            `CriterionTargetRangeOutput` for details. Optional. If not given, an
+            instance of the type given by `target_range_type` is
+            constructed using the target, range and optionally `distance_func`
+            parameters passed through the `target`, `range` and `distance_func`
+            parameters. To access other parameters of the `CriterionTargetRange`
+            init method, use a partial function of `CriterionTargetRange` as the
+            `target_range` parameter, or pass a lambda that calls
+            `CriterionTargetRange` with the parameters set to the desired
+            values. If `target_range` is not set, the parameters
+            `target_range_type`, `target` and `range` must be set.
+            Subclasses can define a default for `target_range_type` by
+            setting the class attribute `target_range_default_type`.
+        target_range_type : type, optional
+            The default type to use to construct a `CriterionTargetRange` or
+            subclass instance if `target_range` is not set. Must be a subclass
+            of `CriterionTargetRange`, or `CriterionTargetRange` itself.
+            Optional, by default uses the class attribute
+            `target_range_default_type` if set. If that attribute is not set and
+            `target_range` is not set, a MissingDefaultTypeError is raised.
         target : float, optional
             If `target_range` is not set, this parameter is mandatory and used
             to construct a `CriterionTargetRange` instance. A ValueError is
@@ -211,21 +249,43 @@ class TimeseriesRefComparisonAndTargetOutput(
             A function that takes the `TimeseriesRefCriterion` instance passed
             through the `criteria` parameter and returns a
             TimeseriesRefFullComparisonOutput instance, which will be used to
-            output the full comparision data. optional, by default returns a
-            TimeseriesRefFullComparisonOutput instance with the writer passed
-            through the `writer` parameter. If `timeseries_output` is not set,
-            the `writer` parameter must be set.
+            output the full comparision data. If not set, an instance of the
+            type given by `timeseries_output_type` is constructed using
+            the writer passed through the `writer` parameter. Optional, by If
+            `timeseries_output` is not set, the `timeseries_output_type`
+            and `writer` parameters must be set. Subclasses can define a default
+            for `timeseries_output_type` by setting the class attribute
+            `timeseries_output_default_type`.
+        timeseries_output_type : type, optional
+            The default type to use to construct a
+            `TimeseriesRefFullComparisonOutput` instance if `timeseries_output`
+            is not set. Must be a subclass of
+            `TimeseriesRefFullComparisonOutput`, or
+            `TimeseriesRefFullComparisonOutput` itself. Optional, by default
+            uses the class attribute `timeseries_output_default_type` if set.
+            If that attribute is not set and `timeseries_output` is not set,
+            a MissingDefaultTypeError is raised.
         summary_output : callable, optional
             A function that takes the `CriterionTargetRange` instance passed
             through the `target_range` parameter (or constructed using the
             `target`, `range` and `distance_func` parameters) and returns a
             CriterionTargetRangeOutput instance, which will be used to output
-            the summary metrics. Optional, by default returns a
-            `CriterionTargetRangeOutput` instance with the writer passed
-            through the `writer` parameter. Uses default values for other
-            parameters, see the docstring of `CriterionTargetRangeOutput` class.
-            If `summary_output` is not set, the `writer` parameter must be
-            set.
+            the summary metrics. If not set, an instance of the type given by
+            `summary_output_type` is constructed using the writer
+            passed through the `writer` parameter. Optional, by If
+            `summary_output` is not set, the `summary_output_type` and
+            `writer` parameters must be set. Subclasses can define a default
+            for `summary_output_type` by setting the class attribute
+            `summary_output_default_type`.
+        summary_output_type : type, optional
+            The default type to use to construct a
+            `CriterionTargetRangeOutput` instance if `summary_output` is not
+            set. Must be a subclass of
+            `CriterionTargetRangeOutput`, or
+            `CriterionTargetRangeOutput` itself. Optional, by default uses the
+            class attribute `summary_output_default_type` if set. If that
+            attribute is not set and `summary_output` is not set, a
+            MissingDefaultTypeError is raised.
         writer : DataFrameMappingWriter
             The writer to be used to write the output data if either
             `timeseries_output` or `summary_output` is not set. Note that if one
@@ -244,9 +304,19 @@ class TimeseriesRefComparisonAndTargetOutput(
             default key "Summary metrics" is used.
         """
         self.criteria: TimeseriesRefCriterionTypeVar = criteria
+        if target_range_type is None:
+            if hasattr(self, 'target_range_default_type'):
+                target_range_type = self.target_range_default_type
+        if timeseries_output_type is None:
+            if hasattr(self, 'timeseries_output_default_type'):
+                timeseries_output_type = self.timeseries_output_default_type
+        if summary_output_type is None:
+            if hasattr(self, 'summary_output_default_type'):
+                summary_output_type = self.summary_output_default_type
         self.target_range: CriterionTargetRangeTypeVar \
                 = self._prepare_target_range(
             target_range=target_range,
+            target_range_type=target_range_type,
             criteria=criteria,
             target=target,
             range=range,
@@ -255,12 +325,14 @@ class TimeseriesRefComparisonAndTargetOutput(
         self.timeseries_output: TimeseriesOutputTypeVar = \
             self._prepare_timeseries_output(
                 timeseries_output=timeseries_output,
+                timeseries_output_type=timeseries_output_type,
                 criteria=criteria,
                 writer=writer,
             )
         self.summary_output: SummaryOutputTypeVar = \
             self._prepare_summary_output(
                 summary_output=summary_output,
+                summary_output_type=summary_output_type,
                 target_range=self.target_range,
                 writer=writer,
             )
@@ -270,6 +342,109 @@ class TimeseriesRefComparisonAndTargetOutput(
         self.summary_key: str = summary_key if summary_key is not None \
             else 'Summary metrics'
     ###END def TimeseriesComparisonOutput.__init__
+
+    def _prepare_target_range(
+            self,
+            target_range: Callable[
+                [TimeseriesRefCriterionTypeVar],
+                CriterionTargetRangeTypeVar
+            ] | None,
+            target_range_type: tp.Type[CriterionTargetRangeTypeVar] | None,
+            criteria: TimeseriesRefCriterionTypeVar,
+            target: float | None,
+            range: tp.Tuple[float, float] | RelativeRange | None,
+            distance_func: tp.Callable[[float], float] | None,
+    ) -> CriterionTargetRangeTypeVar:
+        """Prepare a CriterionTargetRange or subclass instance for output.
+
+        This method can be overridden by subclasses to customize how
+        `target_range` is used to create a `CriterionTargetRange` or subclass
+        instance, and/or how a default is created if `target_range` is None.
+        """
+        if target_range is not None:
+            return target_range(criteria)
+        else:
+            if target_range_type is None:
+                raise ValueError(
+                    'Either `target_range` or `target_range_type` must be set.'
+                )
+            if target is None:
+                raise ValueError(
+                    '`target` cannot be None when `target_range` is not set.'
+                )
+            if range is None:
+                raise ValueError(
+                    '`range` cannot be None when `target_range` is not set.'
+                )
+            return target_range_type(
+                criterion=criteria,
+                target=target,
+                range=range,
+                distance_func=distance_func,
+            )
+    ###END def TimeseriesComparisonOutput._prepare_target_range
+
+    def _prepare_timeseries_output(
+            self,
+            timeseries_output: Callable[
+                [TimeseriesRefCriterionTypeVar],
+                TimeseriesOutputTypeVar
+            ] | None,
+            timeseries_output_type: tp.Type[TimeseriesOutputTypeVar] | None,
+            criteria: TimeseriesRefCriterionTypeVar,
+            writer: DataFrameMappingWriterTypeVar | None,
+    ) -> TimeseriesOutputTypeVar:
+        """Prepare a TimeseriesOutput or subclass instance for output.
+
+        This method can be overridden by subclasses to customize how
+        `timeseries_output` is used to create a `TimeseriesOutput` or subclass
+        instance, and/or how a default is created if `timeseries_output` is
+        None.
+        """
+        if timeseries_output is not None:
+            return timeseries_output(criteria)
+        else:
+            if timeseries_output_type is None:
+                raise ValueError(
+                    'Either `timeseries_output` or `timeseries_output_type` '
+                    'must be set.'
+                )
+            return timeseries_output_type(
+                criteria=criteria,
+                writer=writer,
+            )
+    ###END def TimeseriesComparisonOutput._prepare_timeseries_output
+
+    def _prepare_summary_output(
+            self,
+            summary_output: Callable[
+                [CriterionTargetRangeTypeVar],
+                SummaryOutputTypeVar
+            ] | None,
+            summary_output_type: tp.Type[SummaryOutputTypeVar] | None,
+            target_range: CriterionTargetRangeTypeVar,
+            writer: DataFrameMappingWriterTypeVar | None,
+    ) -> SummaryOutputTypeVar:
+        """Prepare a SummaryOutput or subclass instance for output.
+
+        This method can be overridden by subclasses to customize how
+        `summary_output` is used to create a `SummaryOutput` or subclass
+        instance, and/or how a default is created if `summary_output` is
+        None.
+        """
+        if summary_output is not None:
+            return summary_output(target_range)
+        else:
+            if summary_output_type is None:
+                raise ValueError(
+                    'Either `summary_output` or `summary_output_type` '
+                    'must be set.'
+                )
+            return summary_output_type(
+                criteria=target_range,
+                writer=writer,
+            )
+    ###END def TimeseriesComparisonOutput._prepare_summary_output
 
     def prepare_output(
             self,
