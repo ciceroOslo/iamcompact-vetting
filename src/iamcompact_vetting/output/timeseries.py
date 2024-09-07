@@ -30,9 +30,19 @@ from .base import (
 
 TimeseriesRefCriterionTypeVar = tp.TypeVar(
     'TimeseriesRefCriterionTypeVar',
-    bound=TimeseriesRefCriterion
+    bound=TimeseriesRefCriterion,
 )  # Should probably also add `covariant=True`, but need to check with actual
    # behavior whether it's that or `contravariant=True`.
+
+CriterionTargetRangeTypeVar = tp.TypeVar(
+    'CriterionTargetRangeTypeVar',
+    bound=CriterionTargetRange,
+)
+
+SummaryOutputTypeVar = tp.TypeVar(
+    'SummaryOutputTypeVar',
+    bound=CriterionTargetRangeOutput,
+)
 
 class TimeseriesRefFullComparisonOutput(
     ResultOutput[
@@ -99,7 +109,195 @@ class CriterionTargetRangeOtherKwargs(tp.TypedDict, total=False):
 ###END class TypedDict CriterionTargetRangeOtherKwargs
 
 
-class TimeSeriesRefFullAndSummaryOutput(
+TimeseriesOutputTypeVar = tp.TypeVar(
+    'TimeseriesOutputTypeVar',
+    bound=TimeseriesRefFullComparisonOutput,
+)
+
+
+class TimeseriesRefComparisonAndTargetOutput(
+    tp.Generic[
+        TimeseriesRefCriterionTypeVar,
+        CriterionTargetRangeTypeVar,
+        TimeseriesOutputTypeVar,
+        SummaryOutputTypeVar,
+        DataFrameMappingWriterTypeVar,
+        WriteReturnTypeVar,
+    ],
+    ResultOutput[
+        TimeseriesRefCriterionTypeVar,
+        pyam.IamDataFrame,
+        dict[str, pd.DataFrame],
+        DataFrameMappingWriterTypeVar,
+        WriteReturnTypeVar,
+    ]
+):
+    """Base class to output full comparison and targets for TimeseriesRefCriterion.
+
+    The `prepare_output` method of this class returns a two-element dictionary,
+    one with the full data as prepared by a `TimeseriesComparisonFullDataOutput`
+    instance, and the second with summary metrics prepared by a instance of
+    `CriterionTargetRangeOutput` or subclass.
+
+    The class is intended to be used for outputting full and summary results to
+    different worksheets in an Excel file using `MultiDataFrameExcelWriter`. The
+    keys of the dictionary are then the names of the worksheets. But it can
+    also be used for any other writer or purpose that accepts a two-element
+    dictionary of the type described here.
+    """
+
+    def __init__(
+            self,
+            *,
+            criteria: TimeseriesRefCriterionTypeVar,
+            target_range: tp.Optional[
+                Callable[
+                    [TimeseriesRefCriterionTypeVar],
+                    CriterionTargetRangeTypeVar
+                ]
+            ] = None,
+            target: tp.Optional[float] = None,
+            range: tp.Optional[tuple[float, float] | RelativeRange] = None,
+            distance_func: tp.Optional[Callable[[float], float]] = None,
+            timeseries_output: tp.Optional[
+                tp.Callable[
+                    [TimeseriesRefCriterion],
+                    TimeseriesOutputTypeVar,
+                ]
+            ] = None,
+            summary_output: tp.Optional[
+                tp.Callable[
+                    [CriterionTargetRangeTypeVar],
+                    SummaryOutputTypeVar,
+                ]
+            ] = None,
+            writer: tp.Optional[DataFrameMappingWriterTypeVar] = None,
+    ):
+        """Init method.
+
+        Parameters
+        ----------
+        criteria : TimeseriesRefCriterion
+            The criterion to be used to prepare the output data.
+        target_range : callable, optional
+            A function that takes the `TimeseriesRefCriterion` instance passed
+            through the `criteria` parameter and returns a
+            `CriterionTargetRange` instance. See the docstring of
+            `CriterionTargetRangeOutput` for details. Optional. By default uses
+            a `CriterionTargetRange` instance using the target, range and
+            optionally `distance_func` parameters passed through the `target`,
+            `range` and `distance_func` parameters. To access other parameters
+            of the `CriterionTargetRange` init method, use a partial function of
+            `CriterionTargetRange` as the `target_range` parameter, or pass a
+            lambda that calls `CriterionTargetRange` with the parameters set to
+            the desired values. If `target_range` is not set, the parameters
+            `target` and `range` must be set.
+        target : float, optional
+            If `target_range` is not set, this parameter is mandatory and used
+            to construct a `CriterionTargetRange` instance. A ValueError is
+            raised if `target_range` is set and `target` is not None.
+        range : 2-tuple of floats or RelativeRange
+            If `target_range` is not set, this parameter is mandatory and used
+            to construct a `CriterionTargetRange` instance. A ValueError is
+            raised if `target_range` is set and `range` is not None.
+        distance_func : callable, optional
+            If `target_range` is not set, this parameter is used to construct
+            a `CriterionTargetRange` instance. A ValueError is raised if
+            `target_range` is set and `distance_func` is not None. Optional.
+            see the `CriterionTargetRange` docstring for the default behavior.
+        timeseries_output : callable, optional
+            A function that takes the `TimeseriesRefCriterion` instance passed
+            through the `criteria` parameter and returns a
+            TimeseriesRefFullComparisonOutput instance, which will be used to
+            output the full comparision data. optional, by default returns a
+            TimeseriesRefFullComparisonOutput instance with the writer passed
+            through the `writer` parameter. If `timeseries_output` is not set,
+            the `writer` parameter must be set.
+        summary_output : callable, optional
+            A function that takes the `CriterionTargetRange` instance passed
+            through the `target_range` parameter (or constructed using the
+            `target`, `range` and `distance_func` parameters) and returns a
+            CriterionTargetRangeOutput instance, which will be used to output
+            the summary metrics. Optional, by default returns a
+            `CriterionTargetRangeOutput` instance with the writer passed
+            through the `writer` parameter. Uses default values for other
+            parameters, see the docstring of `CriterionTargetRangeOutput` class.
+            If `summary_output` is not set, the `writer` parameter must be
+            set.
+        writer : DataFrameMappingWriter
+            The writer to be used to write the output data if either
+            `timeseries_output` or `summary_output` is not set. Note that if one
+            of those is set but not the other, the `writer` parameter must be
+            equal to or at least compatible with the writer instance used by the
+            one that is set. If either `timeseries_output` or `summary_output`
+            is not set, the `writer` parameter is mandatory. If both are set,
+            the `writer` parameter is ignored.
+        """
+        self.criteria: TimeseriesRefCriterionTypeVar = criteria
+        self.target_range: CriterionTargetRangeTypeVar \
+                = self._prepare_target_range(
+            target_range=target_range,
+            criteria=criteria,
+            target=target,
+            range=range,
+            distance_func=distance_func,
+        )
+        self.timeseries_output: TimeseriesOutputTypeVar = \
+            self._prepare_timeseries_output(
+                timeseries_output=timeseries_output,
+                criteria=criteria,
+                writer=writer,
+            )
+        self.summary_output: SummaryOutputTypeVar = \
+            self._prepare_summary_output(
+                summary_output=summary_output,
+                target_range=self.target_range,
+                writer=writer,
+            )
+    ###END def TimeseriesComparisonOutput.__init__
+
+    def prepare_output(
+            self,
+            data: pyam.IamDataFrame,
+    ) -> dict[str, pd.DataFrame]:
+        """Prepare DataFrames with full comparison and with summary metrics.
+
+        *NB!* Unlike the `prepare_output` method of some other `ResultsOutput`
+        subclasses, this method does not take accept a custom `criteria`
+        parameter. Use the `criteria` parameter of the `__init__` method when
+        creating the instance instead. If there is sufficient demand for
+        enabling a custom `criteria` parameter for this method, it may be
+        implemented in the future.
+
+        Parameters
+        ----------
+        data : pyam.IamDataFrame
+            The data to be used in the output.
+
+        Returns
+        -------
+        dict
+            A dictionary with the following keys:
+            * `self._full_comparison_key`: The full comparison DataFrame
+            * `self._summary_key`: The summary metrics DataFrame
+        """
+        # NB! The code below is probably quite inefficient, as the
+        # `prepare_output` calls of both `_full_data_output` and
+        # `_summary_output` will call `self.criteria.get_values`, which
+        # can be expensive. This should be fixed, maybe by enabling
+        # `TimeseriesRefCriterion.get_values` to cache its return value.
+        full_comparison = self._full_data_output.prepare_output(data)
+        summary_metrics = self._summary_output.prepare_output(data)
+        return {
+            self._full_comparison_key: full_comparison,
+            self._summary_key: summary_metrics,
+        }
+    ###END def TimeseriesComparisonOutput.prepare_output
+
+###END class TimeseriesComparisonOutput
+
+
+class OLDCODE_TO_BE_SPLIT_TimeSeriesRefFullAndSummaryOutput(
     ResultOutput[
         TimeseriesRefCriterionTypeVar,
         pyam.IamDataFrame,
