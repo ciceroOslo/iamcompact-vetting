@@ -66,6 +66,7 @@ from iamcompact_vetting.output.base import (
 )
 from iamcompact_vetting.output.timeseries import (
     TimeseriesRefFullComparisonOutput,
+    TimeseriesRefComparisonAndTargetOutput,
 )
 from iamcompact_vetting.output.excel import (
     DataFrameExcelWriter,
@@ -373,11 +374,40 @@ gdp_pop_results_excel_writer: pd.ExcelWriter = pd.ExcelWriter(
 # Then create a `DataFrameExcelWriter` instance that will do the actual writing
 # to Excel:
 # %%
-gdp_pop_harmonization_assessment_writer: DataFrameExcelWriter = \
-    DataFrameExcelWriter(
-        file=gdp_pop_harmonization_assessment_output_file,
-        sheet_name='Results vs harmonization ratio',
-    )
+gdp_pop_harmonization_assessment_writer: MultiDataFrameExcelWriter = \
+    MultiDataFrameExcelWriter(
+        file=gdp_pop_results_excel_writer,
+)
+
+# %%
+gdp_pop_harmonization_output: TimeseriesRefComparisonAndTargetOutput[
+    IamCompactHarmonizationRatioCriterion,
+    IamCompactHarmonizationTarget,
+    TimeseriesRefFullComparisonOutput,
+    CriterionTargetRangeOutput,
+    MultiDataFrameExcelWriter,
+    None
+] = TimeseriesRefComparisonAndTargetOutput(
+    criteria=gdp_pop_harmonization_criterion,
+    target_range=IamCompactHarmonizationTarget,
+    timeseries_output_type=TimeseriesRefFullComparisonOutput,
+    summary_output_type=CriterionTargetRangeOutput,
+    writer=gdp_pop_harmonization_assessment_writer
+)
+
+# %%
+gdp_pop_harmonization_result, _ignore = \
+    gdp_pop_harmonization_output.write_results(iam_df_pop_gdp)
+
+# %% [markdown]
+
+
+# %% [markdown]
+# # OUTDATED CELLS BELOW THIS ONE
+#
+# The cells below are from before starting to rewrite the GDP/Population
+# harmonizatino assessment using the new code with
+# `TimsereesRefFullAndSummaryOutput`.
 
 # %% [markdown]
 # Define a `TimeseriesComparisonFullDataOutput` instance, which will calculate
