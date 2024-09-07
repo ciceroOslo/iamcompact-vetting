@@ -34,7 +34,7 @@ TimeseriesRefCriterionTypeVar = tp.TypeVar(
 )  # Should probably also add `covariant=True`, but need to check with actual
    # behavior whether it's that or `contravariant=True`.
 
-class TimeseriesComparisonFullDataOutput(
+class TimeseriesRefFullComparisonOutput(
     ResultOutput[
         TimeseriesRefCriterionTypeVar,
         pyam.IamDataFrame,
@@ -200,11 +200,11 @@ class TimeSeriesRefFullAndSummaryOutput(
             if full_comparison_key is not None else 'Full comparison'
         self._summary_key: str = summary_key if summary_key is not None \
             else 'Summary metrics'
-        self._full_data_output: TimeseriesComparisonFullDataOutput[
+        self._full_data_output: TimeseriesRefFullComparisonOutput[
             TimeseriesRefCriterionTypeVar,
             NoWriter,
             None
-        ] = TimeseriesComparisonFullDataOutput(
+        ] = TimeseriesRefFullComparisonOutput(
             criteria=criteria,
             writer=NoWriter(),
         )

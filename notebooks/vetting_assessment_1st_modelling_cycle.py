@@ -65,7 +65,7 @@ from iamcompact_vetting.output.base import (
     MultiCriterionTargetRangeOutput,
 )
 from iamcompact_vetting.output.timeseries import (
-    TimeseriesComparisonFullDataOutput,
+    TimeseriesRefFullComparisonOutput,
 )
 from iamcompact_vetting.output.excel import (
     DataFrameExcelWriter,
@@ -385,11 +385,11 @@ gdp_pop_harmonization_assessment_writer: DataFrameExcelWriter = \
 # results to the Excel file.
 # %%
 gdp_pop_harmonization_assessment_output: \
-    TimeseriesComparisonFullDataOutput[
+    TimeseriesRefFullComparisonOutput[
         IamCompactHarmonizationRatioCriterion,
         DataFrameExcelWriter,
         None,
-] = TimeseriesComparisonFullDataOutput(
+] = TimeseriesRefFullComparisonOutput(
     criteria=gdp_pop_harmonization_criterion,
     writer=gdp_pop_harmonization_assessment_writer
 )
