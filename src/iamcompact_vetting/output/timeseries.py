@@ -341,6 +341,7 @@ class TimeseriesRefComparisonAndTargetOutput(
                 else 'Full comparison'
         self.summary_key: str = summary_key if summary_key is not None \
             else 'Summary metrics'
+        self.writer = writer if writer is not None else NoWriter()
     ###END def TimeseriesComparisonOutput.__init__
 
     def _prepare_target_range(
@@ -449,20 +450,21 @@ class TimeseriesRefComparisonAndTargetOutput(
     def prepare_output(
             self,
             data: pyam.IamDataFrame,
+            *,
+            criteria: tp.Optional[TimeseriesRefCriterionTypeVar] = None,
     ) -> dict[str, pd.DataFrame]:
         """Prepare DataFrames with full comparison and with summary metrics.
-
-        *NB!* Unlike the `prepare_output` method of some other `ResultsOutput`
-        subclasses, this method does not take accept a custom `criteria`
-        parameter. Use the `criteria` parameter of the `__init__` method when
-        creating the instance instead. If there is sufficient demand for
-        enabling a custom `criteria` parameter for this method, it may be
-        implemented in the future.
 
         Parameters
         ----------
         data : pyam.IamDataFrame
             The data to be used in the output.
+        criteria : TimeseriesRefCriterion or None
+            The criteria to be used in the output. Uses `self.criteria` by
+            default. Note that using anything else may give unexpected results,
+            since the `TimeseriesRefComparisonAndTargetOutput` class contains
+            components that have been initialized with `self.criteria`. Only set
+            this parameter to something else if you know what you're doing.
 
         Returns
         -------
@@ -477,8 +479,9 @@ class TimeseriesRefComparisonAndTargetOutput(
         # can be expensive. This should be fixed, maybe by enabling
         # `TimeseriesRefCriterion.get_values` to cache its return value.
         full_comparison: pd.DataFrame = \
-            self.timeseries_output.prepare_output(data)
-        summary_metrics: pd.DataFrame = self.summary_output.prepare_output(data)
+            self.timeseries_output.prepare_output(data, criteria=criteria)
+        summary_metrics: pd.DataFrame = \
+            self.summary_output.prepare_output(data, criteria=self.target_range)
         return {
             self.full_comparison_key: full_comparison,
             self.summary_key: summary_metrics,
