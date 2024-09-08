@@ -143,7 +143,7 @@ class TimeseriesRefComparisonAndTargetOutput(
         TimeseriesRefCriterionTypeVar,
         pyam.IamDataFrame,
         dict[str, pd.DataFrame],
-        DataFrameMappingWriterTypeVar,
+        DataFrameMappingWriterTypeVar | NoWriter,
         WriteReturnTypeVar,
     ]
 ):
@@ -249,13 +249,14 @@ class TimeseriesRefComparisonAndTargetOutput(
             A function that takes the `TimeseriesRefCriterion` instance passed
             through the `criteria` parameter and returns a
             TimeseriesRefFullComparisonOutput instance, which will be used to
-            output the full comparision data. If not set, an instance of the
-            type given by `timeseries_output_type` is constructed using
-            the writer passed through the `writer` parameter. Optional, by If
-            `timeseries_output` is not set, the `timeseries_output_type`
-            and `writer` parameters must be set. Subclasses can define a default
-            for `timeseries_output_type` by setting the class attribute
-            `timeseries_output_default_type`.
+            output the full comparision data. Any writer instance that might be
+            set in `timeseries_output` will not be used. The writer passed to
+            the `writer` parameter of this class will be used instead. If
+            `timeseries_output` is not set, an instance of the type given by
+            `timeseries_output_type` is constructed. Optional, if
+            `timeseries_output` is not set, `timeseries_output_type` must be
+            set. Subclasses can define a default for `timeseries_output_type` by
+            setting the class attribute `timeseries_output_default_type`.
         timeseries_output_type : type, optional
             The default type to use to construct a
             `TimeseriesRefFullComparisonOutput` instance if `timeseries_output`
@@ -270,23 +271,23 @@ class TimeseriesRefComparisonAndTargetOutput(
             through the `target_range` parameter (or constructed using the
             `target`, `range` and `distance_func` parameters) and returns a
             CriterionTargetRangeOutput instance, which will be used to output
-            the summary metrics. If not set, an instance of the type given by
-            `summary_output_type` is constructed using the writer
-            passed through the `writer` parameter. Optional, by If
-            `summary_output` is not set, the `summary_output_type` and
-            `writer` parameters must be set. Subclasses can define a default
+            the summary metrics. Any writer instance that might be set in
+            `summary_output` will not be used. The writer passed to the `writer`
+            parameter of this class will be used instead. If `summary_output` is
+            not set, an instance of the type given by `summary_output_type` is
+            constructed. Optional, if `summary_output` is not set, the
+            `summary_output_type` must be set. Subclasses can define a default
             for `summary_output_type` by setting the class attribute
             `summary_output_default_type`.
         summary_output_type : type, optional
-            The default type to use to construct a
-            `CriterionTargetRangeOutput` instance if `summary_output` is not
-            set. Must be a subclass of
-            `CriterionTargetRangeOutput`, or
-            `CriterionTargetRangeOutput` itself. Optional, by default uses the
-            class attribute `summary_output_default_type` if set. If that
-            attribute is not set and `summary_output` is not set, a
-            MissingDefaultTypeError is raised.
-        writer : DataFrameMappingWriter
+            The default type to use to construct a `CriterionTargetRangeOutput`
+            instance if `summary_output` is not set. Must be a subclass of
+            `CriterionTargetRangeOutput`, or `CriterionTargetRangeOutput`
+            itself. Optional, by default uses the class attribute
+            `summary_output_default_type` if set. If that attribute is not set
+            and `summary_output` is not set, a MissingDefaultTypeError is
+            raised.
+        writer : DataFrameMappingWriter, optional
             The writer to be used to write the output data if either
             `timeseries_output` or `summary_output` is not set. Note that if one
             of those is set but not the other, the `writer` parameter must be
@@ -304,6 +305,7 @@ class TimeseriesRefComparisonAndTargetOutput(
             default key "Summary metrics" is used.
         """
         self.criteria: TimeseriesRefCriterionTypeVar = criteria
+        self.writer = writer if writer is not None else NoWriter()
         if target_range_type is None:
             if hasattr(self, 'target_range_default_type'):
                 target_range_type = self.target_range_default_type
@@ -327,21 +329,18 @@ class TimeseriesRefComparisonAndTargetOutput(
                 timeseries_output=timeseries_output,
                 timeseries_output_type=timeseries_output_type,
                 criteria=criteria,
-                writer=writer,
             )
         self.summary_output: SummaryOutputTypeVar = \
             self._prepare_summary_output(
                 summary_output=summary_output,
                 summary_output_type=summary_output_type,
                 target_range=self.target_range,
-                writer=writer,
             )
         self.full_comparison_key: str = \
             full_comparison_key if full_comparison_key is not None \
                 else 'Full comparison'
         self.summary_key: str = summary_key if summary_key is not None \
             else 'Summary metrics'
-        self.writer = writer if writer is not None else NoWriter()
     ###END def TimeseriesComparisonOutput.__init__
 
     def _prepare_target_range(
@@ -393,7 +392,6 @@ class TimeseriesRefComparisonAndTargetOutput(
             ] | None,
             timeseries_output_type: tp.Type[TimeseriesOutputTypeVar] | None,
             criteria: TimeseriesRefCriterionTypeVar,
-            writer: DataFrameMappingWriterTypeVar | None,
     ) -> TimeseriesOutputTypeVar:
         """Prepare a TimeseriesOutput or subclass instance for output.
 
@@ -412,7 +410,7 @@ class TimeseriesRefComparisonAndTargetOutput(
                 )
             return timeseries_output_type(
                 criteria=criteria,
-                writer=writer,
+                writer=NoWriter(),
             )
     ###END def TimeseriesComparisonOutput._prepare_timeseries_output
 
@@ -424,7 +422,6 @@ class TimeseriesRefComparisonAndTargetOutput(
             ] | None,
             summary_output_type: tp.Type[SummaryOutputTypeVar] | None,
             target_range: CriterionTargetRangeTypeVar,
-            writer: DataFrameMappingWriterTypeVar | None,
     ) -> SummaryOutputTypeVar:
         """Prepare a SummaryOutput or subclass instance for output.
 
@@ -443,7 +440,7 @@ class TimeseriesRefComparisonAndTargetOutput(
                 )
             return summary_output_type(
                 criteria=target_range,
-                writer=writer,
+                writer=NoWriter(),
             )
     ###END def TimeseriesComparisonOutput._prepare_summary_output
 
