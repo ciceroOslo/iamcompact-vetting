@@ -399,35 +399,5 @@ gdp_pop_harmonization_output: TimeseriesRefComparisonAndTargetOutput[
 gdp_pop_harmonization_result, _ignore = \
     gdp_pop_harmonization_output.write_results(iam_df_pop_gdp)
 
-# %% [markdown]
-
-
-# %% [markdown]
-# # OUTDATED CELLS BELOW THIS ONE
-#
-# The cells below are from before starting to rewrite the GDP/Population
-# harmonizatino assessment using the new code with
-# `TimsereesRefFullAndSummaryOutput`.
-
-# %% [markdown]
-# Define a `TimeseriesComparisonFullDataOutput` instance, which will calculate
-# the results, and use `gdp_pop_harmonization_assessment_writer` to write the
-# results to the Excel file.
 # %%
-gdp_pop_harmonization_assessment_output: \
-    TimeseriesRefFullComparisonOutput[
-        IamCompactHarmonizationRatioCriterion,
-        DataFrameExcelWriter,
-        None,
-] = TimeseriesRefFullComparisonOutput(
-    criteria=gdp_pop_harmonization_criterion,
-    writer=gdp_pop_harmonization_assessment_writer
-)
-# %%
-gdp_pop_harmonization_result, _ignore = \
-    gdp_pop_harmonization_assessment_output.write_results(iam_df_pop_gdp)
-
-# %% [markdown]
-# Then close the workbook to save it.
-# %%
-gdp_pop_harmonization_assessment_output.writer.close()
+gdp_pop_harmonization_assessment_writer.close()
