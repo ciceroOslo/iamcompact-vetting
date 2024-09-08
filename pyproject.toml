@@ -29,7 +29,6 @@ dev-dependencies = [
     "dvc[ssh]>=3.48.4",
     "pytest-cov>=5.0.0",
     "notebook>=7.2.1",
-    "ruff>=0.6.3",
 ]
 
 [tool.hatch.metadata]
