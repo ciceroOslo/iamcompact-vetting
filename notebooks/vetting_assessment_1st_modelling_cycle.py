@@ -44,26 +44,33 @@
 # %%
 from pathlib import Path
 import re
+from collections.abc import Mapping
 
 import pyam
 import pandas as pd
 
 from iamcompact_vetting.targets.ar6_vetting_targets import (
-    vetting_targets
+    vetting_targets as ar6_vetting_targets,
 )
 from iamcompact_vetting.targets.iamcompact_harmonization_targets import(
+    gdp_pop_harmonization_criterion,
     IamCompactHarmonizationRatioCriterion,
-    gdp_pop_harmonization_criterion
+    IamCompactHarmonizationTarget,
 )
 from iamcompact_vetting.targets.target_classes import(
     CriterionTargetRange,
 )
-from iamcompact_vetting.output.base import CriterionTargetRangeOutput
+from iamcompact_vetting.output.base import (
+    CriterionTargetRangeOutput,
+    MultiCriterionTargetRangeOutput,
+)
 from iamcompact_vetting.output.timeseries import (
-    TimeseriesComparisonFullDataOutput,
+    TimeseriesRefFullComparisonOutput,
+    TimeseriesRefComparisonAndTargetOutput,
 )
 from iamcompact_vetting.output.excel import (
     DataFrameExcelWriter,
+    MultiDataFrameExcelWriter,
     make_valid_excel_sheetname,
 )
 
@@ -133,7 +140,9 @@ prometheus_CCS_df: pyam.IamDataFrame = iam_df.filter(
     model='PROMETHEUS V1', variable='Carbon Capture*',  # pyright: ignore[reportAssignmentType]
 )
 other_df: pyam.IamDataFrame = iam_df.filter(
-    model='PROMETHEUS V1', variable='Carbon Capture*', keep=False,  # pyright: ignore[reportAssignmentType]
+    model='PROMETHEUS V1', 
+    variable='Carbon Capture*',
+    keep=False,  # pyright: ignore[reportAssignmentType]
 )
 prometheus_rename_dict: dict[str, str] = {
     _varname: _varname.replace("Carbon Capture", "Carbon Sequestration|CCS")
@@ -224,12 +233,12 @@ iam_df = iam_df.rename(variable={'GDP': 'GDP|PPP'})  # pyright: ignore[reportAss
 # The cells below assess whether the results are in range and how far they are
 # from the target value of each vetting criterion.
 #
-# The procedure uses `vetting_targets`, a list of `CriterionTargetRange`
+# The procedure uses `ar6_vetting_targets`, a list of `CriterionTargetRange`
 # instances, each of which assesses `iam_df` against one of the AR6 vetting
-# criteria. This list is used to produce a list of `CriterionTargetRangeOutput`
-# instances, each of which which uses one of the elements of `vetting_targets`
-# to produce output data structures, each of which are then written to an Excel
-# file using a `DataFrameExcelWriter` instance.
+# criteria. This list is used to produce a list of `MultiCriterionTargetRangeOutput`
+# instance, which uses `vetting_targets`to produce output DataFrames, each of 
+# which are then written as a worksheet to an Excel file using a
+# `MultiDataFrameExcelWriter` instance.
 #
 # The output Excel file will contain one worksheet for each vetting criterion.
 # Each sheet has three index columns, with the name of a model/scenario pair
@@ -260,118 +269,135 @@ iam_df = iam_df.rename(variable={'GDP': 'GDP|PPP'})  # pyright: ignore[reportAss
 # name with an alternative one or with a Python `Path` object if you wish to
 # write to a differently named file or to a different directory.
 # %%
-results_excel_writer: pd.ExcelWriter = pd.ExcelWriter("vetting_results.xlsx",
-                                              engine='xlsxwriter')
+results_excel_writer: pd.ExcelWriter = \
+    pd.ExcelWriter("ar6_vetting_results.xlsx", engine='xlsxwriter')
 
 # %% [markdown]
-# Then create the list of `CriterionTargetRangeOutput` instances, one for each
-# AR6 vetting criterion. Each instance needs a `DataFrameExcelWriter` instance
-# to write the results to a different worksheet of the same Excel file. The
-# worksheets will have the same name as the corresponding vetting criterion, but
-# with the name potentially shortened and with some characters substituted to
-# make sure that they are valid names for Excel worksheets.
+# Then create the `MultiCriterionTargetRangeOutput` instance for the
+# AR6 vetting criteria. The instance needs a `MultiDataFrameExcelWriter`
+# instance # to write the results to different worksheets of the same Excel
+# file. The # worksheets will have the same name as the corresponding vetting
+# criterion, but with the name potentially shortened and with some characters
+# substituted to make sure that they are valid names for Excel worksheets.
 # %%
-vetting_results_outputs: list[
-    CriterionTargetRangeOutput[DataFrameExcelWriter, None]
-] = [
-    CriterionTargetRangeOutput(
-        criteria=_crit_target,
-        writer=DataFrameExcelWriter(
-            results_excel_writer,
-            sheet_name=make_valid_excel_sheetname(_crit_target.name)
-        )
-    )
-    for _crit_target in vetting_targets
-]
+vetting_results_output: MultiCriterionTargetRangeOutput[
+        CriterionTargetRange,
+        MultiDataFrameExcelWriter
+] = MultiCriterionTargetRangeOutput(
+    criteria={
+        make_valid_excel_sheetname(_crit.name): \
+            _crit for _crit in ar6_vetting_targets},
+    writer=MultiDataFrameExcelWriter(results_excel_writer),
+)
 
 # %% [markdown]
-# Finally, we call the `write_results` method of each of the
-# `CriterionTargetRangeOutput` instances, to compute the results and write them
-# to the Excel file.
+# Finally, we call the `write_results` method of the
+# `MultiCriterionTargetRangeOutput` instance, to compute the results and write
+# them to the Excel file.
 #
-# The results are also returned as `pandas.DataFrame` objects in the list
-# `vetting_results_frames`.
+# The results are also returned as `pandas.DataFrame` objects in the dict
+# `vetting_results_frames`, whose keys are equal to the Excel worksheet names
+# (which in turn are equal to the names of the AR6 vetting criteria, shortened
+# and modified to be valid Excel worksheet names).
 #
 # `results_excel_writer.close()` must be called at the end to close and save the
 # Excel file.
 # %%
-vetting_results_frames: list[pd.DataFrame] = []
-for _output in vetting_results_outputs:
-    _frame, _ = _output.write_results(iam_df)
-    vetting_results_frames.append(_frame)
+vetting_results: Mapping[str, pd.DataFrame]
+vetting_results, _ = vetting_results_output.write_results(iam_df)
 results_excel_writer.close()
 
 # %% [markdown]
 # # Assess agreement with harmonisation data for population and GDP.
 #
 # The cells below will compare the model results in `iam_df` with the
-# harmonization data for population and GDP in each region that is defined
-# (has the same name) in both the harmonization data and in any of the models
-# in `iam_df`. Note that it does not currently take into account differences
-# in region definitions, or aggregate or translate model-specific region names
-# used in different models. This is intended for a future version.
+# harmonization data for population and GDP in each region that is defined (has
+# the same name) in both the harmonization data and in any of the models in
+# `iam_df`. Note that it does not currently take into account differences in
+# region definitions, or aggregate or translate model-specific region names used
+# in different models. This is intended for a future version.
 #
 # The results are returned as a `pandas.DataFrame` and written to an Excel file
-# as the ratio between the values in `iam_df` relative to the harmonization
-# data, for each data point that exists in both data sets. If a given model and
-# scenario agrees precisely with the harmonization data, the corresponding value
-# in the result will be 1.0. If the model has a smaller or greater value than
-# the harmonization data, the value in the result will be smaller or greater
-# than 1.0, respectively.
+# with two worksheets:
+# * `Ratios, full`: Shows the ratio between the values in `iam_df` relative to
+#     the harmonization data, for each data point that exists in both data sets
+#     for each year with no aggregation. Will be 1.0 values that are identical
+#     to the harmonization data.
+# * `Summary`: A table with summary results per model/scenario/region
+#     combination. The table has two columns:
+#     - `Pass`: Shows TRUE for model/scenario/region combinations that pass the
+#       vetting criterion. This usually requires that all data points be within
+#       2% of the target value, i.e., that the ratio is between 0.98 and 1.02.
+#     - `Max rel. diff`: The maximum absolute relative difference between the
+#       data value and harmonization data for the model/scenario/region
+#       combination. The number given is `maxdiff - 1`, where `maxdiff` is
+#       the ratio that differs most from 1.0 across all years. For example, if
+#       the most deviant data value is 10% higher than the harmonization data,
+#       `Max rel. diff` will be 0.1 (the ratio most different from 1.0 will be
+#       1.1). If it is 15% lower than the harmonization data, `Max rel. diff`
+#       will be -0.15 (the ratio most different from 1.0 will be 0.85).
 #
 # Generally, for population and GDP, the ratios should be between 0.98 and 1.02
 # to be considered a close match. Values outside that range suggest that either
 # the model/scenario has used data that do not agree with the harmonization
 # data, or that there are issues with currency conversions, region definitions
 # or other inconsistencies or mistakes.
-#
+
+# %%
 # First get just the GDP and Population variables from the data. Assert that it
 # is not None (not necessary, but if you use Python with a type checker, it is
 # needed to avoid a warning, since the `IamDataFrame.filter` method can return
 # None):
-# %%
 iam_df_pop_gdp = iam_df.filter(variable=['Population', 'GDP|PPP'])
 assert iam_df_pop_gdp is not None
 
 # %% [markdown]
-# Then define a Path to where you want to write an Excel file with the results
-# at the moment it writes it to the file `gdp_pop_harmonization_assessment.xlsx`
-# in the current working directory, but you can change this to your liking.
-# Consult the Python documentation for `pathlib.Path` if you are unfamiliar with
-# how to use Path objects.
+# Then create a `pandas.ExcelWriter` that later code will use to write to a
+# specified Excel file. At the moment, it writes to the file
+# `gdp_pop_harmonization_vetting.xlsx` in the current working directory, but
+# you can change this to your liking.
+
+# %% [markdown]
+# **Test cell**. This should be removed in production, and moved further down to
+# after the Excel part.
+gdp_pop_target: IamCompactHarmonizationTarget = IamCompactHarmonizationTarget(
+    criterion=gdp_pop_harmonization_criterion,
+)
+
 # %%
-gdp_pop_harmonization_assessment_output_file: Path = \
-    Path.cwd() / 'gdp_pop_harmonization_assessment.xlsx'
+gdp_pop_results_excel_writer: pd.ExcelWriter = pd.ExcelWriter(
+        'gdp_pop_harmonization_vetting.xlsx',
+        engine='xlsxwriter',
+)
 
 # %% [markdown]
 # Then create a `DataFrameExcelWriter` instance that will do the actual writing
 # to Excel:
 # %%
-gdp_pop_harmonization_assessment_writer: DataFrameExcelWriter = \
-    DataFrameExcelWriter(
-        file=gdp_pop_harmonization_assessment_output_file,
-        sheet_name='Results vs harmonization ratio',
-    )
+gdp_pop_harmonization_assessment_writer: MultiDataFrameExcelWriter = \
+    MultiDataFrameExcelWriter(
+        file=gdp_pop_results_excel_writer,
+)
 
-# %% [markdown]
-# Define a `TimeseriesComparisonFullDataOutput` instance, which will calculate
-# the results, and use `gdp_pop_harmonization_assessment_writer` to write the
-# results to the Excel file.
 # %%
-gdp_pop_harmonization_assessment_output: \
-    TimeseriesComparisonFullDataOutput[
-        IamCompactHarmonizationRatioCriterion,
-        DataFrameExcelWriter,
-        None,
-] = TimeseriesComparisonFullDataOutput(
+gdp_pop_harmonization_output: TimeseriesRefComparisonAndTargetOutput[
+    IamCompactHarmonizationRatioCriterion,
+    IamCompactHarmonizationTarget,
+    TimeseriesRefFullComparisonOutput,
+    CriterionTargetRangeOutput,
+    MultiDataFrameExcelWriter,
+    None
+] = TimeseriesRefComparisonAndTargetOutput(
     criteria=gdp_pop_harmonization_criterion,
+    target_range=IamCompactHarmonizationTarget,
+    timeseries_output_type=TimeseriesRefFullComparisonOutput,
+    summary_output_type=CriterionTargetRangeOutput,
     writer=gdp_pop_harmonization_assessment_writer
 )
+
 # %%
 gdp_pop_harmonization_result, _ignore = \
-    gdp_pop_harmonization_assessment_output.write_results(iam_df_pop_gdp)
+    gdp_pop_harmonization_output.write_results(iam_df_pop_gdp)
 
-# %% [markdown]
-# Then close the workbook to save it.
 # %%
-gdp_pop_harmonization_assessment_output.writer.close()
+gdp_pop_harmonization_assessment_writer.close()

@@ -204,14 +204,64 @@ class ToExcelKwargs(tp.TypedDict):
     engine_kwargs: dict
 ###END TypedDict class ToExcelKwargs
 
+
+def _get_excel_writer(file: ExcelFileSpec|pd.ExcelWriter) -> pd.ExcelWriter:
+    """Process `file` parameter into a `pandas.ExcelWriter` object.
+    
+    This function is used by the `__init__` methods of (at least)
+    `DataFrameExcelWriter` and `MultiDataFrameExcelWriter`, to produce a
+    `pandas.ExcelWriter` object from a `Path`, `str`, `BytesIO`, or
+    pre-existing `pandas.ExcelWriter` object (in the last case, the object is
+    simply returned as-is). If an `xlsxwriter.Workbook` object is passed in
+    a `TypeError` is raised.
+
+    Parameters
+    ----------
+    file : Path, str, BytesIO, or pandas.ExcelWriter
+        Path or str specifying the Excel file to write to, or a pre-existing
+        `xlsxwriter.Workbook` or `pandas.ExcelWriter` object. Can also be an
+        in-memory `BytesIO` object.
+    """
+    if isinstance(file, pd.ExcelWriter):
+        if not isinstance(file.book, Workbook):
+            raise ValueError(
+                'When using a `pandas.ExcelWriter` object for writers that '
+                'produce Excel files from DataFrames, it must use the '
+                '`xlsxwriter` engine and have `.book` attribute that is an '
+                'instance of `xlsxwriter.Workbook`.'
+            )
+        return file
+    if isinstance(file, Workbook):
+        raise TypeError(
+            'Writer objects that produce Excel files from DataFrames do not '
+            'support using a pre-existing `xlsxwriter.Workbook` object. '
+            'If you need that, you must first create a `pandas.ExcelWriter` '
+            'instance with `xlsxwriter` as the engine, and then pass that to '
+            'the writer `__init__` method. Then, for other contexts where you '
+            'need a `xlsxwriter.Workbook` object, use the `.book` attribute of '
+            'the `pandas.ExcelWriter` instance that you created.'
+        )
+    else:
+        excel_writer: pd.ExcelWriter = pd.ExcelWriter(file, engine='xlsxwriter')
+        if not isinstance(excel_writer.book, Workbook):
+            raise RuntimeError(
+                'The `pandas.ExcelWriter` object that was created using '
+                '`engine="xlsxwriter"` has a `.book` attribute that is not an '
+                'instance of `xlsxwriter.Workbook`. This should not be '
+                'possible.'
+            )
+        return excel_writer
+###END def _get_excel_writer
+
 class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
+    """Class for writing results from a DataFrame to an Excel file worksheet."""
 
     _sheet_name: str
 
     def __init__(
             self,
             file: ExcelFileSpec | pd.ExcelWriter,
-            sheet_name: str,
+            sheet_name: str = 'Sheet1',
             style: tp.Optional[ExcelDataFrameStyle] = None,
             check_sheet_name_length: bool = True,
     ) -> None:
@@ -221,7 +271,7 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
         file : Path, str, BytesIO, or pandas.ExcelWriter
             Path or str specifying the Excel file to write to, or a pre-existing
             `xlsxwriter.Workbook` or `pandas.ExcelWriter` object. Can also write
-            to an in-memory `BytesIO` object.If using a `pandas.ExcelWriter`
+            to an in-memory `BytesIO` object. If using a `pandas.ExcelWriter`
             object, it must use `xlsxwriter` as its engine.
         sheet_name : str
             The name of the sheet to write the data to.
@@ -237,29 +287,9 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
             than `MAX_SHEET_NAME_LENGTH`, you will almost certainly get an error
             when you attempt to write the data to the workbook.
         """
-        if isinstance(file, pd.ExcelWriter):
-            if not isinstance(file.book, Workbook):
-                raise ValueError(
-                    'When using a `pandas.ExcelWriter` object, its `.book` '
-                    'attribute must be an `xlsxwriter.Workbook` object, i.e., '
-                    'it must use `xlsxwriter` as its engine.'
-                )
-            self.excel_writer: pd.ExcelWriter = file
-            super().__init__(file=file.book)
-        elif isinstance(file, Workbook):
-            raise TypeError(
-                '`DataFrameExcelWriter` does not support using an existing '
-                '`xlsxwriter.Workbook` instance. If you need this '
-                'functionality, instead of creating the `Workbook` instance '
-                'directly, you need to create a `pandas.ExcelWriter` object '
-                'with `engine="xlsxwriter"` and pass that to this method. '
-                'You can then get the `Workbook` instance from the '
-                '`.book` attribute of the `pandas.ExcelWriter` object.'
-            )
-        else:
-            self.excel_writer: pd.ExcelWriter = \
-                pd.ExcelWriter(file, engine='xlsxwriter')
-            super().__init__(file=self.excel_writer.book)
+        self.excel_writer: pd.ExcelWriter = _get_excel_writer(file)
+        assert isinstance(self.excel_writer.book, Workbook)
+        super().__init__(file=self.excel_writer.book)
         if check_sheet_name_length:
             self.sheet_name = sheet_name
         else:
@@ -296,6 +326,7 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
             self,
             data: pd.DataFrame,
             /,
+            *,
             sheet_name: tp.Optional[str] = None,
             to_excel_kwargs: tp.Optional[dict[str, tp.Any]] = None,
     ) -> None:
@@ -317,6 +348,10 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
         if sheet_name is None:
             if 'sheet_name' in to_excel_kwargs:
                 sheet_name = to_excel_kwargs.pop('sheet_name')
+                if not isinstance(sheet_name, str):
+                    raise TypeError(
+                        '`sheet_name` must be a string. '
+                    )
             else:
                 sheet_name = self.sheet_name
         if 'merge_cells' not in to_excel_kwargs:
@@ -334,3 +369,104 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
     ###END def DataFrameExcelWriter.write
 
 ###END class DataFrameExcelWriter
+
+
+class MultiDataFrameExcelWriter(
+    ExcelWriterBase[Mapping[str, pd.DataFrame], None]
+):
+    """Writes multiple DataFrames to separate sheets in an Excel file.
+    
+    This class is designed to take a mapping from sheet names to
+    `pandas.DataFrame` objects and write them to separate sheets in an
+    Excel file, using multiple `DataFrameExcelWriter` objects.
+    """
+
+    _close_after_write: bool
+
+    def __init__(
+            self,
+            file: ExcelFileSpec | pd.ExcelWriter,
+            style: tp.Optional[ExcelDataFrameStyle] = None,
+            check_sheet_name_length: bool = True,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        file : str, Path, BytesIO, or pandas.ExcelWriter
+            Path or str specifying the Excel file to write to, or a pre-existing
+            `xlsxwriter.Workbook` or `pandas.ExcelWriter` object. Can also write
+            to an in-memory `BytesIO` object. If using a `pandas.ExcelWriter`
+            object, it must use `xlsxwriter` as its engine.
+        style : ExcelDataFrameStyle, optional
+            Style specifications for writing DataFrames to an Excel file.
+            Optional, defaults to None.
+        check_sheet_name_length : bool, optional
+            Check that the sheet names passed to `write` are not longer than the
+            maximum supported by Excel (31 characters, set in the
+            `MAX_SHEET_NAME_LENGTH` constant). Optional, defaults to True.
+        """
+        if isinstance(file, pd.ExcelWriter):
+            self._close_after_write = False
+        else:
+            self._close_after_write = True
+        self.excel_writer: pd.ExcelWriter = _get_excel_writer(file)
+        assert isinstance(self.excel_writer.book, Workbook)
+        super().__init__(file=self.excel_writer.book)
+        self.check_sheet_name_length: bool = check_sheet_name_length
+        self.style: ExcelDataFrameStyle|None = style
+    ###END def MultiDataFrameExcelWriter.__init__
+
+    def write(
+            self,
+            data: Mapping[str, pd.DataFrame],
+            /,
+            *,
+            style: tp.Optional[
+                ExcelDataFrameStyle | dict[str, ExcelDataFrameStyle|None]
+            ] = None,
+            to_excel_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+    ) -> None:
+        """Write DataFrames to separate sheets in Excel file.
+        
+        Parameters
+        ----------
+        data : Mapping[str, pd.DataFrame]
+            A mapping from sheet names to `pandas.DataFrame` objects. Each
+            DataFrame will be written to the corresponding sheet in the Excel
+            file, using a `DataFrameExcelWriter` object that is created
+            internally.
+        to_excel_kwargs : dict, optional
+            Additional keyword arguments to pass to `pd.DataFrame.to_excel`.
+            Optional, defaults to None. The same keyword arguments are passed
+            to each `DataFrameExcelWriter` object and thus used for all
+            worksheets. The `sheet_name` argument is ignored if it is present.
+        """
+        if style is None:
+            style = {_name: self.style for _name in data.keys()}
+        elif isinstance(style, ExcelDataFrameStyle):
+            style = {_name: style for _name in data.keys()}
+        elif not isinstance(style, Mapping):
+            raise TypeError(
+                f'`style` must be a `ExcelDataFrameStyle` or a mapping from '
+                f'sheet names to `ExcelDataFrameStyle` objects. '
+            )
+        if to_excel_kwargs is None:
+            to_excel_kwargs = dict()
+        if self.check_sheet_name_length:
+            for _sheet_name in data.keys():
+                if len(_sheet_name) > MAX_SHEET_NAME_LENGTH:
+                    raise ValueError(
+                        f'Sheet name "{_sheet_name}" is longer than the '
+                        f'maximum allowed length of {MAX_SHEET_NAME_LENGTH} '
+                    )
+        for _sheet_name, _df in data.items():
+            _writer: DataFrameExcelWriter = DataFrameExcelWriter(
+                file=self.excel_writer,
+                sheet_name=_sheet_name,
+                style=style[_sheet_name],
+                check_sheet_name_length=self.check_sheet_name_length,
+            )
+            _writer.write(_df, to_excel_kwargs=to_excel_kwargs)
+    ###END def MultiDataFrameExcelWriter.write
+
+###END class MultiDataFrameExcelWriter
