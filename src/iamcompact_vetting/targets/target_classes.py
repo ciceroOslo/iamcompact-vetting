@@ -141,6 +141,9 @@ class CriterionTargetRange:
     ):
         self._criterion: Criterion = criterion
         self.name: str = criterion.criterion_name if name is None else name
+        # Initialize _relative_range to None. If `range` is a RelativeRange,
+        # self._relative_range will be set in `self._set_unit_specs`.
+        self._relative_range: RelativeRange|None = None
         self.target = target
         self.range = range
         _convert_value_units: bool
@@ -197,12 +200,16 @@ class CriterionTargetRange:
         return self._target
     @target.setter
     def target(self, value: float):
-        if self.range is not None \
+        if self.range is not None and self._relative_range is None \
                 and (value < self.range[0] or value > self.range[1]):
             raise ValueError(
                 f"Target value {value} is outside of range {self.range}."
             )
         self._target: float = value
+        # Update the range if it is a RelativeRange, by simply passing it in
+        # again.
+        if self._relative_range is not None:
+            self.range = self._relative_range
 
     @property
     def range(self) -> tuple[float, float]|None:
@@ -212,7 +219,14 @@ class CriterionTargetRange:
     def range(self, value: tuple[float, float]|RelativeRange|None):
         if value is not None:
             if isinstance(value, RelativeRange):
+                self._relative_range = value
                 value = value.get_absolute(self.target)
+            else:
+                self._relative_range = None
+            tupleified: tuple[float, ...] = tuple(value)
+            if len(tupleified) != 2:
+                raise ValueError('Range must be a tuple of length 2.')
+            value = tupleified
             if value[0] > value[1]:
                 raise ValueError('Lower bound of range must be less than '
                                  'upper bound.')
@@ -221,6 +235,10 @@ class CriterionTargetRange:
                     f"Target value {self.target} is outside of range {value}."
                 )
         self._range: tuple[float, float]|None = value
+
+    @property
+    def relative_range(self) -> RelativeRange|None:
+        return self._relative_range
 
     def _check_unit_specs(
             self,
