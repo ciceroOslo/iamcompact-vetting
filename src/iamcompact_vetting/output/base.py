@@ -21,10 +21,10 @@ ResultsWriter
     of `pathways_ensemble_analysis.Criterion` or
     `iamcompact_vetting.targets.CriterionTargetRange` subclasses).
 """
-import typing as tp
 from abc import ABC, abstractmethod
-from enum import StrEnum
 from collections.abc import Sequence, Mapping
+import enum
+import typing as tp
 
 import pyam
 import pandas as pd
@@ -285,7 +285,7 @@ class ResultOutput(
 ###END abstract class ResultOutput
 
 
-class CTCol(StrEnum):
+class CTCol(enum.StrEnum):
     """Column names for DataFrames received by `CriterionTargetRangeOutput`."""
     INRANGE = 'in_range'
     DISTANCE = 'distance'
@@ -378,6 +378,13 @@ DataFrameMappingWriterTypeVar = tp.TypeVar(
     bound=ResultsWriter[Mapping[str, pd.DataFrame], tp.Any],
 )
 
+
+class SummaryColumnSource(enum.Enum):
+    """Specifies where to get the column names of summary DataFrames from."""
+    DICT_KEYS = enum.auto()
+    CRITERIA_NAMES = enum.auto()
+###END enum class SummaryColumnSource
+
 class MultiCriterionTargetRangeOutput(
         ResultOutput[
             Mapping[str, CriterionTargetRangeTypeVar],
@@ -432,7 +439,7 @@ class MultiCriterionTargetRangeOutput(
             columns: tp.Optional[Mapping[str, Sequence[CTCol]]] = None,
             column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
                 = None,
-    ) -> Mapping[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
         """TODO: NEED TO ADD PROPER DOCSTRING"""
         if criteria is None:
             criteria = self.criteria
@@ -457,4 +464,127 @@ class MultiCriterionTargetRangeOutput(
         }
     ###END def MultiCriterionTargetRangeOutput.prepare_output
 
+    def prepare_summary_output(
+            self,
+            data: pyam.IamDataFrame,
+            /,
+            criteria: tp.Optional[Mapping[str, CriterionTargetRangeTypeVar]] \
+                = None,
+            *,
+            columns: tp.Optional[Mapping[str, Sequence[CTCol]]] = None,
+            column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
+                = None,
+            column_name_source: tp.Optional[SummaryColumnSource|str] = None,
+            confirm_levels: tp.Optional[Sequence[str]] = None,
+            drop_levels: tp.Optional[str|Sequence[str]] = None,
+    ) -> dict[str, pd.DataFrame]:
+        """Create DataFrame with values from one column for all criteria.
+        
+        Returns a dict of DataFrames, where each DataFrame contains the values
+        for a single column from the output from each criterion, and has each
+        criterion along the columns.
+
+        **NB!** The current implementation of this method in practice assumes
+        that the `.get_values` method of each criterion will return a `Series`
+        with the same index levels, including both level names and level
+        ordering, even if the documentation might make it look like that is not
+        the case. A future version might take care to do whatever broadcasting,
+        level reordering and reindexing that is necessary to align the Series
+        properly. But for now you will need to ensure that all the criteria
+        return Series with the same index levels, and override them with
+        subclasses if necessary.
+
+        Parameters
+        ----------
+        data : pyam.IamDataFrame
+            The data to be used in the output.
+        criteria : Mapping[str, CriterionTargetRangeTypeVar], optional
+            The criteria to be used in the output. If `None` (default),
+            `self.criteria` will be used.
+        columns : Mapping[str, Sequence[CTCol]], optional
+            The columns to be used in the output. If `None` (default),
+            `self._default_columns` will be used.
+        column_titles : Mapping[str, Mapping[CTCol, str]], optional
+            The column titles to be used in the output. If `None` (default),
+            `self._default_column_titles` will be used. The titles will be the
+            keys of the returned dict.
+        column_name_source : SummaryColumnSource or str, optional
+            Where to get the column names of the summary DataFrames from (which
+            identify the criteria). If a str, the names will be taken from an
+            index level, which must then be present in the Series returned by
+            the `.get_values` method of each criterion in `criteria`. If a
+            `SummaryColumnSource` enum, the following will be used:
+            * `SummaryColumnSource.DICT_KEYS`: The column names will be taken
+              from the dictionary keys of `criteria`.
+            * `SummaryColumnSource.CRITERIA_NAMES`: The column names will be
+              taken from the `.name` property of each criterion in `criteria`.
+            Optional, the deafult is `SummaryColumnSource.DICT_KEYS`.
+        drop_levels : str or Sequence[str], optional
+            Level names to be dropped from the index of the returned DataFrame
+            from each criterion, and not included in the index of the DataFrame
+            returned from this method. If `column_name_source` is a string, the
+            corresponding level is always dropped (since it is used in the
+            column names), and **must be not** included here. Any levels with
+            the given names will be dropped, but no error is raised if the given
+            names are not present in the indexes of the Series returned by any
+            of the criteria in `criteria`. Optional, the default is to drop the
+            levels `variable` and the level names given in the
+            `.rename_variable_column` attribute of each `CriterionTargetRange`
+            instance in `criteria`. If you do not wish to drop any levels, pass
+            in an empty tuple or list.
+        confirm_levels : Sequence[str], optional
+            Level names to be confirmed to be present in the index of the
+            returned DataFrame from each criterion, after dropping the levels
+            specified in `drop_levels` and any that are implicitly dropped based
+            on `column_name_source`. If given, each DataFrame must have
+            exactly the index level names given by this parameter. If you do not
+            wish to confirm levels, pass in an empty tuple or list. Note that
+            if there are discrepancies in the level names across criteria, this
+            method is likely to return unexpected results. Optional, by default
+            equal to `("model", "scenario", "region")`. If a level name is 
+        """
+        if criteria is None:
+            criteria = self.criteria
+        if confirm_levels is None:
+            confirm_levels = ("model", "scenario", "region")
+        else:
+            confirm_levels = tuple(confirm_levels)
+        if column_name_source is None:
+            column_name_source = SummaryColumnSource.DICT_KEYS
+        if drop_levels is None:
+            drop_levels = ('variable',) + tuple(
+                _crit.rename_variable_column for _crit in criteria.values()
+                    if isinstance(_crit.rename_variable_column, str)
+            )
+        if isinstance(drop_levels, str):
+            drop_levels = (drop_levels,)
+        drop_levels = tuple(drop_levels)
+        if not isinstance(column_name_source, SummaryColumnSource):
+            if not isinstance(column_name_source, str):
+                raise TypeError(
+                    f"`column_name_source` must be either a `str` or "
+                    f"`SummaryColumnSource` enum, not {type(column_name_source)}"
+                )
+            confirm_levels = confirm_levels + (column_name_source,)
+        full_output: dict[str, pd.DataFrame] = self.prepare_output(
+            data,
+            criteria=criteria,
+            columns=columns,
+            column_titles=column_titles,
+        )
+        if len(drop_levels) > 0:
+            full_output = {
+                _key: _df.droplevel(drop_levels)
+                    for _key, _df in full_output.items()
+            }
+        if len(confirm_levels) > 0:
+            for _key, _df in full_output.items():
+                if not set(_df.index.names) == set(confirm_levels):
+                    raise ValueError(
+                        f'Expected all index levels in `confirm_levels` to be '
+                        f'present in the index of the DataFrame returned by '
+                        f'`prepare_output` for the criterion given by key '
+                        f'"{_key}". Expected index levels {confirm_levels}, '
+                        f'but found {set(_df.index.names)}.'
+                    )
 ###END class MultiCriterionTargetRangeOutput
