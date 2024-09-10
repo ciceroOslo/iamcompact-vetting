@@ -118,6 +118,11 @@ class CriterionTargetRange:
         and the lower bound if the value is less than the target (i.e., it will
         be `0` if the value is equal to the target, `1` if it is equal to the
         upper bound, and `-1` if it is equal to the lower bound).
+    description : str or None, optional
+        A text description or explanation of the target. Optional, defaults to
+        None, which signifies that no description has been set (as opposed to
+        an empty string, which signifies that the description has been
+        purposefully set to be blank).
     """
 
     _unit: str|None = None
@@ -138,6 +143,7 @@ class CriterionTargetRange:
             convert_input_units: bool = False,
             value_unit: tp.Optional[str] = None,
             distance_func: tp.Optional[Callable[[float], float]] = None,
+            description: str|None = None,
     ):
         self._criterion: Criterion = criterion
         self.name: str = criterion.criterion_name if name is None else name
@@ -166,6 +172,7 @@ class CriterionTargetRange:
             self.distance_func: Callable[[float], float] = distance_func
         else:
             self.distance_func = self._default_distance_func
+        self.description: str|None = description
     ###END def CriterionTargetRange.__init__
 
     @staticmethod
