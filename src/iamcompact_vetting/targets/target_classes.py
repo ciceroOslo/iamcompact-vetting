@@ -123,6 +123,17 @@ class CriterionTargetRange:
         None, which signifies that no description has been set (as opposed to
         an empty string, which signifies that the description has been
         purposefully set to be blank).
+    rename_variable_column : str or bool, optional
+        Whether and how to rename the `variable` index column in the
+        `pandas.Series` returned by `pea.Criterion.get_values`. That method
+        tends to use an index level that it calls `variable` (presumably
+        inherited from the `pyam` package) for the name of the criterion, which
+        is a bit confusing given that it is not the variable or variables that
+        the criterion actually uses to calculate values. Pass a string value to
+        rename the `variable` index level to that string before the Series is
+        returned. Pass a bool `False` value if you do not want the level to be
+        renamed. If `None` or unspecified, the level will be renamed to
+        `"criterion"`.
     """
 
     _unit: str|None = None
@@ -144,6 +155,7 @@ class CriterionTargetRange:
             value_unit: tp.Optional[str] = None,
             distance_func: tp.Optional[Callable[[float], float]] = None,
             description: str|None = None,
+            rename_variable_column: tp.Optional[str|bool] = None,
     ):
         self._criterion: Criterion = criterion
         self.name: str = criterion.criterion_name if name is None else name
@@ -173,6 +185,12 @@ class CriterionTargetRange:
         else:
             self.distance_func = self._default_distance_func
         self.description: str|None = description
+        self.rename_variable_column: str|bool = 'criterion' \
+            if rename_variable_column is None else rename_variable_column
+        if not isinstance(self.rename_variable_column, (str, bool)):
+            raise TypeError(
+                f'`rename_variable_column` must be a string or boolean.'
+            )
     ###END def CriterionTargetRange.__init__
 
     @staticmethod
@@ -497,7 +515,29 @@ class CriterionTargetRange:
         pandas.Series
             The Series returned by the `.get_values` method of `self.criterion`.
         """
-        return self._criterion.get_values(file, **get_values_kwargs)
+        values: pd.Series = \
+            self._criterion.get_values(file, **get_values_kwargs)
+        if self.rename_variable_column:
+            if 'variable' not in values.index.names:
+                raise ValueError(
+                    'The index of the Series returned by '
+                    '`Criterion.get_values` does not have a level named '
+                    '"variable". Please set `rename_variable_column` to False '
+                    'in the `CriterionTargetRange` init call to avoid this '
+                    'error.'
+                )
+            if not isinstance(self.rename_variable_column, str):
+                raise RuntimeError(
+                    '`self.rename_variable_column` is not a string, but a '
+                    f'{type(self.rename_variable_column)}, which should not be '
+                    'possible at this point in the code. There is probably a '
+                    'bug, or somebody manually changed attributes that should '
+                    'have been left alone.'
+                )
+            values = values.rename_axis(
+                index={'variable': self.rename_variable_column}
+            )
+        return values
     ###END def CriterionTargetRange.get_values
 
 
