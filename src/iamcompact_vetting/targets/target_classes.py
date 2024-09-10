@@ -118,6 +118,11 @@ class CriterionTargetRange:
         and the lower bound if the value is less than the target (i.e., it will
         be `0` if the value is equal to the target, `1` if it is equal to the
         upper bound, and `-1` if it is equal to the lower bound).
+    description : str or None, optional
+        A text description or explanation of the target. Optional, defaults to
+        None, which signifies that no description has been set (as opposed to
+        an empty string, which signifies that the description has been
+        purposefully set to be blank).
     """
 
     _unit: str|None = None
@@ -138,9 +143,13 @@ class CriterionTargetRange:
             convert_input_units: bool = False,
             value_unit: tp.Optional[str] = None,
             distance_func: tp.Optional[Callable[[float], float]] = None,
+            description: str|None = None,
     ):
         self._criterion: Criterion = criterion
         self.name: str = criterion.criterion_name if name is None else name
+        # Initialize _relative_range to None. If `range` is a RelativeRange,
+        # self._relative_range will be set in `self._set_unit_specs`.
+        self._relative_range: RelativeRange|None = None
         self.target = target
         self.range = range
         _convert_value_units: bool
@@ -163,6 +172,7 @@ class CriterionTargetRange:
             self.distance_func: Callable[[float], float] = distance_func
         else:
             self.distance_func = self._default_distance_func
+        self.description: str|None = description
     ###END def CriterionTargetRange.__init__
 
     @staticmethod
@@ -197,12 +207,16 @@ class CriterionTargetRange:
         return self._target
     @target.setter
     def target(self, value: float):
-        if self.range is not None \
+        if self.range is not None and self._relative_range is None \
                 and (value < self.range[0] or value > self.range[1]):
             raise ValueError(
                 f"Target value {value} is outside of range {self.range}."
             )
         self._target: float = value
+        # Update the range if it is a RelativeRange, by simply passing it in
+        # again.
+        if self._relative_range is not None:
+            self.range = self._relative_range
 
     @property
     def range(self) -> tuple[float, float]|None:
@@ -212,7 +226,14 @@ class CriterionTargetRange:
     def range(self, value: tuple[float, float]|RelativeRange|None):
         if value is not None:
             if isinstance(value, RelativeRange):
+                self._relative_range = value
                 value = value.get_absolute(self.target)
+            else:
+                self._relative_range = None
+            tupleified: tuple[float, ...] = tuple(value)
+            if len(tupleified) != 2:
+                raise ValueError('Range must be a tuple of length 2.')
+            value = tupleified
             if value[0] > value[1]:
                 raise ValueError('Lower bound of range must be less than '
                                  'upper bound.')
@@ -221,6 +242,10 @@ class CriterionTargetRange:
                     f"Target value {self.target} is outside of range {value}."
                 )
         self._range: tuple[float, float]|None = value
+
+    @property
+    def relative_range(self) -> RelativeRange|None:
+        return self._relative_range
 
     def _check_unit_specs(
             self,
