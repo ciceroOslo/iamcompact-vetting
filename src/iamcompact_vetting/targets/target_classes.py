@@ -435,8 +435,7 @@ class CriterionTargetRange:
             of True for values that are in the target range, and False for those
             that are not.
         """
-        values: pd.Series = self._criterion.get_values(file,
-                                                       **get_values_kwargs)
+        values: pd.Series = self.get_values(file, **get_values_kwargs)
         return values.apply(self.is_in_range)
     ###END def CriterionTargetRange.get_in_range
 
@@ -465,8 +464,7 @@ class CriterionTargetRange:
             for the distance between the value for a given model/scenario and
             the target value.
         """
-        values: pd.Series = self._criterion.get_values(file,
-                                                       **get_values_kwargs)
+        values: pd.Series = self.get_values(file, **get_values_kwargs)
         return values.apply(self.distance_func)
     ###END def CriterionTargetRange.get_distances
 
