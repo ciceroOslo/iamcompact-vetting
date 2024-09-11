@@ -512,12 +512,16 @@ class MultiCriterionTargetRangeOutput(
             Where to get the column names of the summary DataFrames from (which
             identify the criteria). If a str, the names will be taken from an
             index level, which must then be present in the Series returned by
-            the `.get_values` method of each criterion in `criteria`. If a
-            `SummaryColumnSource` enum, the following will be used:
-            * `SummaryColumnSource.DICT_KEYS`: The column names will be taken
-              from the dictionary keys of `criteria`.
-            * `SummaryColumnSource.CRITERIA_NAMES`: The column names will be
-              taken from the `.name` property of each criterion in `criteria`.
+            the `.get_values` method of each criterion in `criteria`. **NB!** If
+            you pass a string value for `column_name_source`, you will probably
+            also need to pass a value for `drop_levels`, to ensure that the
+            specified index level is not dropped, since dropping levels takes
+            place before obtaining column names. If `column_name_source` is a
+            `SummaryColumnSource` enum, the following will be used: 
+              * `SummaryColumnSource.DICT_KEYS`: The column names will be
+                taken from the dictionary keys of `criteria`.
+              * `SummaryColumnSource.CRITERIA_NAMES`: The column names will be
+                taken from the `.name` property of each criterion in `criteria`.
             Optional, the deafult is `SummaryColumnSource.DICT_KEYS`.
         drop_levels : str or Sequence[str], optional
             Level names to be dropped from the index of the returned DataFrame
@@ -546,7 +550,7 @@ class MultiCriterionTargetRangeOutput(
         if criteria is None:
             criteria = self.criteria
         if confirm_levels is None:
-            confirm_levels = ("model", "scenario", "region")
+            confirm_levels = ('model', 'scenario', 'region')
         else:
             confirm_levels = tuple(confirm_levels)
         if column_name_source is None:
@@ -572,6 +576,32 @@ class MultiCriterionTargetRangeOutput(
             columns=columns,
             column_titles=column_titles,
         )
+        # Detect column names, check that all DataFrames have the same columns,
+        # and that the number of column names is equal to the number of elements
+        # in `columns` if it is not `None`. Start with the column names of the
+        # first DataFrame, check the number of columns, then compare all other
+        # DataFrames to that.
+        output_columns: tuple[str, ...] \
+            = tuple(next(iter(full_output.values())).columns)
+        if columns is not None:
+            if len(columns) != len(output_columns):
+                raise ValueError(
+                    f'Expected the number of columns in `columns` to be '
+                    f'equal to the number of columns in the DataFrame returned '
+                    f'by `prepare_output`. Expected {len(columns)}, but found '
+                    f'{len(output_columns)}.'
+                )
+        output_column_set: set[str] = set(output_columns)
+        for _key, _df in full_output.items():
+            if (len(_df.columns) != len(output_columns)) \
+                    or (set(_df.columns) != output_column_set):
+                raise ValueError(
+                    f'Expected all columns in the DataFrames returned by '
+                    '`prepare_output` to have the same names. Expected '
+                    f'column names {output_columns}, but found '
+                    f'{_df.columns} for the criterion given by key '
+                    f'"{_key}".'
+                )
         if len(drop_levels) > 0:
             full_output = {
                 _key: _df.droplevel(drop_levels)
@@ -587,4 +617,50 @@ class MultiCriterionTargetRangeOutput(
                         f'"{_key}". Expected index levels {confirm_levels}, '
                         f'but found {set(_df.index.names)}.'
                     )
+        # Create a helper function to transform the output from a single
+        # criterion. Should be a Series, where the correct column has already
+        # been selected. The resulting DataFrames will be concatenated
+        # horizontally
+        def _transform_crit_output(
+                _crit_output: pd.Series,
+                _column_name_source: SummaryColumnSource|str,
+                _dict_key: str,
+                _name: str,
+        ) -> pd.DataFrame:
+            match _column_name_source:
+                case SummaryColumnSource.DICT_KEYS:
+                    return pd.DataFrame(
+                        data=_crit_output,
+                        index=_crit_output.index,
+                        columns=[_dict_key],
+                    )
+                case SummaryColumnSource.CRITERIA_NAMES:
+                    return pd.DataFrame(
+                        data=_crit_output,
+                        index=_crit_output.index,
+                        columns=[_name],
+                    )
+                case levelname if isinstance(levelname, str):
+                    return _crit_output.unstack(level=levelname)
+                case _:
+                    raise TypeError(
+                        f'`column_name_source` must be either a `str` or a '
+                        '`SummaryColumnSource` enum, not '
+                        f'{type(column_name_source)}.'
+                    )
+
+        return_dict: dict[str, pd.DataFrame] = {
+            _column: tp.cast(pd.DataFrame, pd.concat(
+                [
+                    _transform_crit_output(
+                        _crit_output=_df[_column],
+                        _column_name_source=column_name_source,
+                        _dict_key=_key,
+                        _name=criteria[_key].name,
+                    ) for _key, _df in full_output.items()
+                ],
+                axis=1,
+            )) for _column in output_columns
+        }
+        return return_dict
 ###END class MultiCriterionTargetRangeOutput
