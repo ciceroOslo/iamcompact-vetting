@@ -471,6 +471,7 @@ class MultiCriterionTargetRangeOutput(
             criteria: tp.Optional[Mapping[str, CriterionTargetRangeTypeVar]] \
                 = None,
             *,
+            prepared_output: tp.Optional[dict[str, pd.DataFrame]] = None,
             columns: tp.Optional[Mapping[str, Sequence[CTCol]]] = None,
             column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
                 = None,
@@ -499,8 +500,16 @@ class MultiCriterionTargetRangeOutput(
         data : pyam.IamDataFrame
             The data to be used in the output.
         criteria : Mapping[str, CriterionTargetRangeTypeVar], optional
-            The criteria to be used in the output. If `None` (default),
-            `self.criteria` will be used.
+            The criteria to be used in the output. If `None` (default) and
+            `prepared_output` is `None`, `self.criteria` will be used.
+        prepared_output : Mapping[str, pd.DataFrame], optional
+            Already prepared output from `self.prepare_output`. Can be used to
+            boost efficiency, as the method will otherwise call
+            `self.prepare_output`. If you specify `prepared_output` you must
+            ensure that the `criteria` is identical to criteria passed to the
+            original call to `prepare_output` that was used to prepare the
+            DataFrames. If `columns` is specified, you must also ensure that it
+            is identical. `column_titles` will be ignored.
         columns : Mapping[str, Sequence[CTCol]], optional
             The columns to be used in the output. If `None` (default),
             `self._default_columns` will be used.
@@ -570,12 +579,14 @@ class MultiCriterionTargetRangeOutput(
                     f"`SummaryColumnSource` enum, not {type(column_name_source)}"
                 )
             confirm_levels = confirm_levels + (column_name_source,)
-        full_output: dict[str, pd.DataFrame] = self.prepare_output(
-            data,
-            criteria=criteria,
-            columns=columns,
-            column_titles=column_titles,
-        )
+        full_output: dict[str, pd.DataFrame] = prepared_output \
+                if prepared_output is not None \
+                    else self.prepare_output(
+                        data,
+                        criteria=criteria,
+                        columns=columns,
+                        column_titles=column_titles,
+                    )
         # Detect column names, check that all DataFrames have the same columns,
         # and that the number of column names is equal to the number of elements
         # in `columns` if it is not `None`. Start with the column names of the
