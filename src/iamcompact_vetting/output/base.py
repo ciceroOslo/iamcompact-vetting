@@ -439,8 +439,19 @@ class MultiCriterionTargetRangeOutput(
             columns: tp.Optional[Mapping[str, Sequence[CTCol]]] = None,
             column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
                 = None,
+            add_summary_output: tp.Optional[bool] = None,
+            summary_column_name_source: tp.Optional[SummaryColumnSource|str] \
+                = None,
+            summary_confirm_levels: tp.Optional[Sequence[str]] = None,
+            summary_drop_levels: tp.Optional[str|Sequence[str]] = None,
     ) -> dict[str, pd.DataFrame]:
-        """TODO: NEED TO ADD PROPER DOCSTRING"""
+        """TODO: NEED TO ADD PROPER DOCSTRING
+
+        Note that the kwargs starting with `summary_` are only used if
+        `add_summary_output` is `True`, otherwise they are ignored.
+        """
+        if add_summary_output is None:
+            add_summary_output = False
         if criteria is None:
             criteria = self.criteria
         if columns is None:
@@ -453,7 +464,7 @@ class MultiCriterionTargetRangeOutput(
                 _name: self._default_column_titles
                 for _name in criteria
             }
-        return {
+        output_dict: dict[str, pd.DataFrame] = {
             _name: CriterionTargetRangeOutput(
                 criteria=_criterion,
                 writer=self.writer,
@@ -462,11 +473,21 @@ class MultiCriterionTargetRangeOutput(
             ).prepare_output(data)
             for _name, _criterion in criteria.items()
         }
+        if add_summary_output:
+            output_dict = self.prepare_summary_output(
+                criteria=criteria,
+                columns=columns,
+                column_titles=column_titles,
+                column_name_source=summary_column_name_source,
+                confirm_levels=summary_confirm_levels,
+                drop_levels=summary_drop_levels,
+            ) | output_dict
+        return output_dict
     ###END def MultiCriterionTargetRangeOutput.prepare_output
 
     def prepare_summary_output(
             self,
-            data: pyam.IamDataFrame,
+            data: tp.Optional[pyam.IamDataFrame] = None,
             /,
             criteria: tp.Optional[Mapping[str, CriterionTargetRangeTypeVar]] \
                 = None,
@@ -579,14 +600,24 @@ class MultiCriterionTargetRangeOutput(
                     f"`SummaryColumnSource` enum, not {type(column_name_source)}"
                 )
             confirm_levels = confirm_levels + (column_name_source,)
-        full_output: dict[str, pd.DataFrame] = prepared_output \
-                if prepared_output is not None \
-                    else self.prepare_output(
-                        data,
-                        criteria=criteria,
-                        columns=columns,
-                        column_titles=column_titles,
-                    )
+        full_output: dict[str, pd.DataFrame]
+        if prepared_output is None:
+            if data is None:
+                raise ValueError(
+                    'If `prepared_output` is `None`, `data` must not be `None`.'
+                )
+            full_output = self.prepare_output(
+                data,
+                criteria=criteria,
+                columns=columns,
+                column_titles=column_titles,
+            )
+        else:
+            if data is not None:
+                raise ValueError(
+                    'If `prepared_output` is not `None`, `data` must be `None`.'
+                )
+            full_output = prepared_output
         # Detect column names, check that all DataFrames have the same columns,
         # and that the number of column names is equal to the number of elements
         # in `columns` if it is not `None`. Start with the column names of the
