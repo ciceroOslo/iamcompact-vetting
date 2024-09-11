@@ -445,7 +445,6 @@ class MultiCriterionTargetRangeOutput(
             columns_in_summary: tp.Optional[Sequence[CTCol]] = None,
             summary_column_name_source: tp.Optional[SummaryColumnSource|str] \
                 = None,
-            summary_confirm_levels: tp.Optional[Sequence[str]] = None,
             summary_drop_levels: tp.Optional[str|Sequence[str]] = None,
     ) -> dict[str, pd.DataFrame]:
         """TODO: NEED TO ADD PROPER DOCSTRING
@@ -493,7 +492,6 @@ class MultiCriterionTargetRangeOutput(
                 columns=columns_in_summary,
                 column_titles=column_titles,
                 column_name_source=summary_column_name_source,
-                confirm_levels=summary_confirm_levels,
                 drop_levels=summary_drop_levels,
             ) | output_dict
         return output_dict
@@ -511,7 +509,6 @@ class MultiCriterionTargetRangeOutput(
             column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
                 = None,
             column_name_source: tp.Optional[SummaryColumnSource|str] = None,
-            confirm_levels: tp.Optional[Sequence[str]] = None,
             drop_levels: tp.Optional[str|Sequence[str]] = None,
     ) -> dict[str, pd.DataFrame]:
         """Create DataFrame with values from one column for all criteria.
@@ -523,9 +520,9 @@ class MultiCriterionTargetRangeOutput(
         **NB!** The current implementation of this method in practice assumes
         that the `.get_values` method of each criterion will return a `Series`
         with the same index levels, including both level names and level
-        ordering, even if the documentation might make it look like that is not
-        the case. A future version might take care to do whatever broadcasting,
-        level reordering and reindexing that is necessary to align the Series
+        ordering, after the levels listed in `drop_levels` have been removed. A
+        future version might take care to do whatever broadcasting, level
+        reordering and reindexing that is necessary to align the Series
         properly. But for now you will need to ensure that all the criteria
         return Series with the same index levels, and override them with
         subclasses if necessary.
@@ -566,7 +563,7 @@ class MultiCriterionTargetRangeOutput(
                 taken from the dictionary keys of `criteria`.
               * `SummaryColumnSource.CRITERIA_NAMES`: The column names will be
                 taken from the `.name` property of each criterion in `criteria`.
-            Optional, the deafult is `SummaryColumnSource.DICT_KEYS`.
+            Optional, the deafult is `SummaryColumnSource.CRITERIA_NAMES`.
         drop_levels : str or Sequence[str], optional
             Level names to be dropped from the index of the returned DataFrame
             from each criterion, and not included in the index of the DataFrame
@@ -580,25 +577,11 @@ class MultiCriterionTargetRangeOutput(
             `.rename_variable_column` attribute of each `CriterionTargetRange`
             instance in `criteria`. If you do not wish to drop any levels, pass
             in an empty tuple or list.
-        confirm_levels : Sequence[str], optional
-            Level names to be confirmed to be present in the index of the
-            returned DataFrame from each criterion, after dropping the levels
-            specified in `drop_levels` and any that are implicitly dropped based
-            on `column_name_source`. If given, each DataFrame must have
-            exactly the index level names given by this parameter. If you do not
-            wish to confirm levels, pass in an empty tuple or list. Note that
-            if there are discrepancies in the level names across criteria, this
-            method is likely to return unexpected results. Optional, by default
-            equal to `("model", "scenario", "region")`. If a level name is 
         """
         if criteria is None:
             criteria = self.criteria
-        if confirm_levels is None:
-            confirm_levels = ('model', 'scenario', 'region')
-        else:
-            confirm_levels = tuple(confirm_levels)
         if column_name_source is None:
-            column_name_source = SummaryColumnSource.DICT_KEYS
+            column_name_source = SummaryColumnSource.CRITERIA_NAMES
         if drop_levels is None:
             drop_levels = ('variable',) + tuple(
                 _crit.rename_variable_column for _crit in criteria.values()
@@ -613,7 +596,6 @@ class MultiCriterionTargetRangeOutput(
                     f"`column_name_source` must be either a `str` or "
                     f"`SummaryColumnSource` enum, not {type(column_name_source)}"
                 )
-            confirm_levels = confirm_levels + (column_name_source,)
         full_output: dict[str, pd.DataFrame]
         if prepared_output is None:
             if data is None:
@@ -664,16 +646,17 @@ class MultiCriterionTargetRangeOutput(
                                      if _level in _df.index.names])
                     for _key, _df in full_output.items()
             }
-        if len(confirm_levels) > 0:
-            for _key, _df in full_output.items():
-                if not set(_df.index.names) == set(confirm_levels):
-                    raise ValueError(
-                        f'Expected all index levels in `confirm_levels` to be '
-                        f'present in the index of the DataFrame returned by '
-                        f'`prepare_output` for the criterion given by key '
-                        f'"{_key}". Expected index levels {confirm_levels}, '
-                        f'but found {set(_df.index.names)}.'
-                    )
+        levels_first_df: tuple[str, ...] = tuple()
+        for _key, _df in full_output.items():
+            if len(levels_first_df) == 0:
+                levels_first_df = tuple(_df.index.names)
+            if not set(_df.index.names) == set(levels_first_df):
+                raise ValueError(
+                    'Expected all DataFrames returned by `prepare_output` to '
+                    'have the same index levels. The first DataFrame had '
+                    f'{levels_first_df}, but found {_df.index.names} for the '
+                    f'criterion given by key "{_key}".'
+                )
         # Create a helper function to transform the output from a single
         # criterion. Should be a Series, where the correct column has already
         # been selected. The resulting DataFrames will be concatenated
@@ -686,17 +669,9 @@ class MultiCriterionTargetRangeOutput(
         ) -> pd.DataFrame:
             match _column_name_source:
                 case SummaryColumnSource.DICT_KEYS:
-                    return pd.DataFrame(
-                        data=_crit_output,
-                        index=_crit_output.index,
-                        columns=[_dict_key],
-                    )
+                    return _crit_output.to_frame(name=_dict_key)
                 case SummaryColumnSource.CRITERIA_NAMES:
-                    return pd.DataFrame(
-                        data=_crit_output,
-                        index=_crit_output.index,
-                        columns=[_name],
-                    )
+                    return _crit_output.to_frame(name=_name)
                 case levelname if isinstance(levelname, str):
                     return _crit_output.unstack(level=levelname)
                 case _:
