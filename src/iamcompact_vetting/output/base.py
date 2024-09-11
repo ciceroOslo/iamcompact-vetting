@@ -436,10 +436,13 @@ class MultiCriterionTargetRangeOutput(
             criteria: tp.Optional[Mapping[str, CriterionTargetRangeTypeVar]] \
                 = None,
             *,
-            columns: tp.Optional[Mapping[str, Sequence[CTCol]]] = None,
+            columns: tp.Optional[
+                Mapping[str, Sequence[CTCol]] | Sequence[CTCol]
+            ] = None,
             column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
                 = None,
             add_summary_output: tp.Optional[bool] = None,
+            columns_in_summary: tp.Optional[Sequence[CTCol]] = None,
             summary_column_name_source: tp.Optional[SummaryColumnSource|str] \
                 = None,
             summary_confirm_levels: tp.Optional[Sequence[str]] = None,
@@ -455,20 +458,30 @@ class MultiCriterionTargetRangeOutput(
         if criteria is None:
             criteria = self.criteria
         if columns is None:
-            columns = {
-                _name: self._default_columns
-                for _name in criteria
-            }
+            columns = self._default_columns
         if column_titles is None:
             column_titles = {
                 _name: self._default_column_titles
                 for _name in criteria
             }
+        if add_summary_output:
+            if columns_in_summary is None:
+                if isinstance(columns, Mapping):
+                    raise ValueError(
+                        'Received `None` for `columns_in_summary`. If '
+                        '`add_summary_output` is `True`, and `columns` is a '
+                        'mapping from strings to column names (i.e., the '
+                        'columns to include can vary by criterion), '
+                        '`columns_in_summary` cannot be inferred from '
+                        '`columns` and must be specified.'
+                    )
+                columns_in_summary = columns
         output_dict: dict[str, pd.DataFrame] = {
             _name: CriterionTargetRangeOutput(
                 criteria=_criterion,
                 writer=self.writer,
-                columns=columns[_name],
+                columns=columns[_name] if isinstance(columns, Mapping) \
+                    else columns,
                 column_titles=column_titles[_name],
             ).prepare_output(data)
             for _name, _criterion in criteria.items()
@@ -476,7 +489,8 @@ class MultiCriterionTargetRangeOutput(
         if add_summary_output:
             output_dict = self.prepare_summary_output(
                 criteria=criteria,
-                columns=columns,
+                prepared_output=output_dict,
+                columns=columns_in_summary,
                 column_titles=column_titles,
                 column_name_source=summary_column_name_source,
                 confirm_levels=summary_confirm_levels,
@@ -493,7 +507,7 @@ class MultiCriterionTargetRangeOutput(
                 = None,
             *,
             prepared_output: tp.Optional[dict[str, pd.DataFrame]] = None,
-            columns: tp.Optional[Mapping[str, Sequence[CTCol]]] = None,
+            columns: tp.Optional[Sequence[CTCol]] = None,
             column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
                 = None,
             column_name_source: tp.Optional[SummaryColumnSource|str] = None,
@@ -532,7 +546,7 @@ class MultiCriterionTargetRangeOutput(
             DataFrames. If `columns` is specified, you must also ensure that it
             is identical. `column_titles` will be ignored.
         columns : Mapping[str, Sequence[CTCol]], optional
-            The columns to be used in the output. If `None` (default),
+            The columns to include summaries for. If `None` (default),
             `self._default_columns` will be used.
         column_titles : Mapping[str, Mapping[CTCol, str]], optional
             The column titles to be used in the output. If `None` (default),
@@ -592,7 +606,7 @@ class MultiCriterionTargetRangeOutput(
             )
         if isinstance(drop_levels, str):
             drop_levels = (drop_levels,)
-        drop_levels = tuple(drop_levels)
+        drop_levels = tuple(set(drop_levels))
         if not isinstance(column_name_source, SummaryColumnSource):
             if not isinstance(column_name_source, str):
                 raise TypeError(
@@ -646,7 +660,8 @@ class MultiCriterionTargetRangeOutput(
                 )
         if len(drop_levels) > 0:
             full_output = {
-                _key: _df.droplevel(drop_levels)
+                _key: _df.droplevel([_level for _level in drop_levels
+                                     if _level in _df.index.names])
                     for _key, _df in full_output.items()
             }
         if len(confirm_levels) > 0:

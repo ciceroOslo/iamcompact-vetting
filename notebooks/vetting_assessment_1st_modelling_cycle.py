@@ -304,7 +304,10 @@ vetting_results_output: MultiCriterionTargetRangeOutput[
 # Excel file.
 # %%
 vetting_results: Mapping[str, pd.DataFrame]
-vetting_results, _ = vetting_results_output.write_results(iam_df)
+vetting_results, _ = vetting_results_output.write_results(
+    iam_df,
+    prepare_output_kwargs=dict(add_summary_output=True),
+)
 results_excel_writer.close()
 
 # %% [markdown]
