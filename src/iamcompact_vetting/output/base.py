@@ -370,6 +370,17 @@ class CriterionTargetRangeOutput(
         return results_df
     ###END def CriterionTargetRangeOutput.prepare_output
 
+    def get_target_range_values(
+            self,
+            index: pd.MultiIndex,
+            include_values: tp.Optional[TargetRangeValue] = None,
+            criteria: tp.Optional[CriterionTargetRangeTypeVar] = None,
+            *,
+            columns: tp.Optional[Sequence[CTCol]] = None,
+            column_titles: tp.Optional[Mapping[CTCol, str]] = None,
+    ) -> pd.DataFrame:
+        ...
+
 ###END class CriterionTargetRangeOutput
 
 
