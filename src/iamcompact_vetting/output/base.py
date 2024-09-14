@@ -304,7 +304,7 @@ class CriterionTargetRangeOutput(
 ):
     """TODO: NEED TO ADD PROPER DOCSTRING"""
 
-    _default_columns: Sequence[CTCol]
+    _default_columns: list[CTCol]
     _default_column_titles: Mapping[CTCol, str]
 
     def __init__(
@@ -317,14 +317,17 @@ class CriterionTargetRangeOutput(
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
         super().__init__(criteria=criteria, writer=writer)
-        self._default_columns = columns if columns is not None else (
-            CTCol.INRANGE,
-            CTCol.DISTANCE,
-            CTCol.VALUE,
-        )
+        if columns is not None:
+            self._default_columns = list(columns)
+        elif not hasattr(self, '_default_columns'):
+            self._default_columns = [
+                CTCol.INRANGE,
+                CTCol.DISTANCE,
+                CTCol.VALUE,
+            ]
         if column_titles is not None:
             self._default_column_titles = column_titles
-        else:
+        elif not hasattr(self, '_default_column_titles'):
             self._default_column_titles = {
                 CTCol.INRANGE: 'Is in target range',
                 CTCol.DISTANCE: 'Rel. distance from target',
@@ -370,16 +373,16 @@ class CriterionTargetRangeOutput(
         return results_df
     ###END def CriterionTargetRangeOutput.prepare_output
 
-    def get_target_range_values(
-            self,
-            index: pd.MultiIndex,
-            include_values: tp.Optional[TargetRangeValue] = None,
-            criteria: tp.Optional[CriterionTargetRangeTypeVar] = None,
-            *,
-            columns: tp.Optional[Sequence[CTCol]] = None,
-            column_titles: tp.Optional[Mapping[CTCol, str]] = None,
-    ) -> pd.DataFrame:
-        ...
+    # def get_target_range_values(
+    #         self,
+    #         index: pd.MultiIndex,
+    #         include_values: tp.Optional[TargetRangeValue] = None,
+    #         criteria: tp.Optional[CriterionTargetRangeTypeVar] = None,
+    #         *,
+    #         columns: tp.Optional[Sequence[CTCol]] = None,
+    #         column_titles: tp.Optional[Mapping[CTCol, str]] = None,
+    # ) -> pd.DataFrame:
+    #     ...
 
 ###END class CriterionTargetRangeOutput
 
@@ -435,14 +438,17 @@ class MultiCriterionTargetRangeOutput(
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
         super().__init__(criteria=criteria, writer=writer)
-        self._default_columns = list(columns) if columns is not None else [
-            CTCol.INRANGE,
-            CTCol.DISTANCE,
-            CTCol.VALUE,
-        ]
+        if columns is not None:
+            self._default_columns = list(columns)
+        elif not hasattr(self, '_default_columns'):
+            self._default_columns = list(columns) if columns is not None else [
+                CTCol.INRANGE,
+                CTCol.DISTANCE,
+                CTCol.VALUE,
+            ]
         if column_titles is not None:
             self._default_column_titles = column_titles
-        else:
+        elif not hasattr(self, '_default_column_titles'):
             self._default_column_titles = {
                 CTCol.INRANGE: 'Is in target range',
                 CTCol.DISTANCE: 'Rel. distance from target',
