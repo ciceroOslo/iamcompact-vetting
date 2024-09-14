@@ -49,9 +49,8 @@ from collections.abc import Mapping
 import pyam
 import pandas as pd
 
-from iamcompact_vetting.targets.ar6_vetting_targets import (
-    vetting_targets as ar6_vetting_targets,
-)
+from iamcompact_vetting.output.iamcompact_outputs import \
+    ar6_vetting_target_range_output
 from iamcompact_vetting.targets.iamcompact_harmonization_targets import(
     gdp_pop_harmonization_criterion,
     IamCompactHarmonizationRatioCriterion,
@@ -280,14 +279,10 @@ results_excel_writer: pd.ExcelWriter = \
 # criterion, but with the name potentially shortened and with some characters
 # substituted to make sure that they are valid names for Excel worksheets.
 # %%
-vetting_results_output: MultiCriterionTargetRangeOutput[
-        CriterionTargetRange,
-        MultiDataFrameExcelWriter
-] = MultiCriterionTargetRangeOutput(
-    criteria={
-        make_valid_excel_sheetname(_crit.name): \
-            _crit for _crit in ar6_vetting_targets},
-    writer=MultiDataFrameExcelWriter(results_excel_writer),
+vetting_results_output = ar6_vetting_target_range_output
+vetting_results_output.writer = MultiDataFrameExcelWriter(
+    results_excel_writer,
+    force_valid_sheet_name=True,
 )
 
 # %% [markdown]
