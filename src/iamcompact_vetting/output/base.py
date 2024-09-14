@@ -412,8 +412,18 @@ class MultiCriterionTargetRangeOutput(
     using a `CriterionTargetRange` instance to produce the given DataFrame.
     """
 
-    _default_columns: Sequence[CTCol]
+    _default_columns: list[CTCol]
     _default_column_titles: dict[CTCol, str]
+
+    class InitKwargsType(tp.TypedDict, total=False):
+        columns: tp.Optional[tp.Sequence[CTCol]]
+        column_titles: tp.Optional[tp.Dict[CTCol, str]]
+    ###END class MultiCriterionTargetRangeOutput.KwargType
+    """Type annotations for keyword arguments to the `__init__` method.
+
+    Can be used by subclasses that wish to override the `__init__` method
+    without repeating the entire function signature.
+    """
 
     def __init__(
             self,
@@ -425,11 +435,11 @@ class MultiCriterionTargetRangeOutput(
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
         super().__init__(criteria=criteria, writer=writer)
-        self._default_columns = columns if columns is not None else (
+        self._default_columns = list(columns) if columns is not None else [
             CTCol.INRANGE,
             CTCol.DISTANCE,
             CTCol.VALUE,
-        )
+        ]
         if column_titles is not None:
             self._default_column_titles = column_titles
         else:
