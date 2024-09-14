@@ -257,13 +257,15 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
     """Class for writing results from a DataFrame to an Excel file worksheet."""
 
     _sheet_name: str
+    _force_valid_sheet_name: bool
 
     def __init__(
             self,
             file: ExcelFileSpec | pd.ExcelWriter,
             sheet_name: str = 'Sheet1',
             style: tp.Optional[ExcelDataFrameStyle] = None,
-            check_sheet_name_length: bool = True,
+            check_sheet_name_length: tp.Optional[bool] = None,
+            force_valid_sheet_name: tp.Optional[bool] = None,
     ) -> None:
         """
         Parameters
@@ -286,7 +288,17 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
             Note that if you set this to `False` and `sheet_name` is longer
             than `MAX_SHEET_NAME_LENGTH`, you will almost certainly get an error
             when you attempt to write the data to the workbook.
+        force_valid_sheet_name : bool, optional
+            Whether to modify `sheet_name` into a string that is valid as a
+            worksheet name in an Excel file if it is not valid as given. If
+            True, `sheet_name` will be passed to `make_valid_excel_sheet_name`
+            before being used. Optional, defaults to False.
         """
+        if check_sheet_name_length is None:
+            check_sheet_name_length = True
+        if force_valid_sheet_name is None:
+            force_valid_sheet_name = False
+        self._force_valid_sheet_name = force_valid_sheet_name
         self.excel_writer: pd.ExcelWriter = _get_excel_writer(file)
         assert isinstance(self.excel_writer.book, Workbook)
         super().__init__(file=self.excel_writer.book)
@@ -313,6 +325,8 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
 
     @sheet_name.setter
     def sheet_name(self, value: str) -> None:
+        if self._force_valid_sheet_name:
+            value = make_valid_excel_sheetname(value)
         if len(value) > MAX_SHEET_NAME_LENGTH:
             raise ValueError(
                 f'`sheet_name` must not be longer than '
@@ -388,6 +402,7 @@ class MultiDataFrameExcelWriter(
             file: ExcelFileSpec | pd.ExcelWriter,
             style: tp.Optional[ExcelDataFrameStyle] = None,
             check_sheet_name_length: bool = True,
+            force_valid_sheet_name: bool = False,
     ) -> None:
         """
         Parameters
@@ -404,6 +419,10 @@ class MultiDataFrameExcelWriter(
             Check that the sheet names passed to `write` are not longer than the
             maximum supported by Excel (31 characters, set in the
             `MAX_SHEET_NAME_LENGTH` constant). Optional, defaults to True.
+        force_valid_sheet_name : bool, optional
+            Whether to modify the keys of the `data` dict passed to `write` to
+            be valid Excel sheet names, using the `make_valid_excel_sheetname`
+            function. Optional, defaults to False.
         """
         if isinstance(file, pd.ExcelWriter):
             self._close_after_write = False
@@ -412,8 +431,9 @@ class MultiDataFrameExcelWriter(
         self.excel_writer: pd.ExcelWriter = _get_excel_writer(file)
         assert isinstance(self.excel_writer.book, Workbook)
         super().__init__(file=self.excel_writer.book)
-        self.check_sheet_name_length: bool = check_sheet_name_length
         self.style: ExcelDataFrameStyle|None = style
+        self.check_sheet_name_length: bool = check_sheet_name_length
+        self.force_valid_sheet_name: bool = force_valid_sheet_name
     ###END def MultiDataFrameExcelWriter.__init__
 
     def write(
@@ -452,19 +472,13 @@ class MultiDataFrameExcelWriter(
             )
         if to_excel_kwargs is None:
             to_excel_kwargs = dict()
-        if self.check_sheet_name_length:
-            for _sheet_name in data.keys():
-                if len(_sheet_name) > MAX_SHEET_NAME_LENGTH:
-                    raise ValueError(
-                        f'Sheet name "{_sheet_name}" is longer than the '
-                        f'maximum allowed length of {MAX_SHEET_NAME_LENGTH} '
-                    )
         for _sheet_name, _df in data.items():
             _writer: DataFrameExcelWriter = DataFrameExcelWriter(
                 file=self.excel_writer,
                 sheet_name=_sheet_name,
                 style=style[_sheet_name],
                 check_sheet_name_length=self.check_sheet_name_length,
+                force_valid_sheet_name=self.force_valid_sheet_name,
             )
             _writer.write(_df, to_excel_kwargs=to_excel_kwargs)
     ###END def MultiDataFrameExcelWriter.write
