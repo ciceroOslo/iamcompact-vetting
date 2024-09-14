@@ -21,10 +21,10 @@ ResultsWriter
     of `pathways_ensemble_analysis.Criterion` or
     `iamcompact_vetting.targets.CriterionTargetRange` subclasses).
 """
-import typing as tp
 from abc import ABC, abstractmethod
-from enum import StrEnum
 from collections.abc import Sequence, Mapping
+import enum
+import typing as tp
 
 import pyam
 import pandas as pd
@@ -285,7 +285,7 @@ class ResultOutput(
 ###END abstract class ResultOutput
 
 
-class CTCol(StrEnum):
+class CTCol(enum.StrEnum):
     """Column names for DataFrames received by `CriterionTargetRangeOutput`."""
     INRANGE = 'in_range'
     DISTANCE = 'distance'
@@ -304,7 +304,7 @@ class CriterionTargetRangeOutput(
 ):
     """TODO: NEED TO ADD PROPER DOCSTRING"""
 
-    _default_columns: Sequence[CTCol]
+    _default_columns: list[CTCol]
     _default_column_titles: Mapping[CTCol, str]
 
     def __init__(
@@ -317,14 +317,17 @@ class CriterionTargetRangeOutput(
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
         super().__init__(criteria=criteria, writer=writer)
-        self._default_columns = columns if columns is not None else (
-            CTCol.INRANGE,
-            CTCol.DISTANCE,
-            CTCol.VALUE,
-        )
+        if columns is not None:
+            self._default_columns = list(columns)
+        elif not hasattr(self, '_default_columns'):
+            self._default_columns = [
+                CTCol.INRANGE,
+                CTCol.DISTANCE,
+                CTCol.VALUE,
+            ]
         if column_titles is not None:
             self._default_column_titles = column_titles
-        else:
+        elif not hasattr(self, '_default_column_titles'):
             self._default_column_titles = {
                 CTCol.INRANGE: 'Is in target range',
                 CTCol.DISTANCE: 'Rel. distance from target',
@@ -370,6 +373,17 @@ class CriterionTargetRangeOutput(
         return results_df
     ###END def CriterionTargetRangeOutput.prepare_output
 
+    # def get_target_range_values(
+    #         self,
+    #         index: pd.MultiIndex,
+    #         include_values: tp.Optional[TargetRangeValue] = None,
+    #         criteria: tp.Optional[CriterionTargetRangeTypeVar] = None,
+    #         *,
+    #         columns: tp.Optional[Sequence[CTCol]] = None,
+    #         column_titles: tp.Optional[Mapping[CTCol, str]] = None,
+    # ) -> pd.DataFrame:
+    #     ...
+
 ###END class CriterionTargetRangeOutput
 
 
@@ -377,6 +391,13 @@ DataFrameMappingWriterTypeVar = tp.TypeVar(
     'DataFrameMappingWriterTypeVar',
     bound=ResultsWriter[Mapping[str, pd.DataFrame], tp.Any],
 )
+
+
+class SummaryColumnSource(enum.Enum):
+    """Specifies where to get the column names of summary DataFrames from."""
+    DICT_KEYS = enum.auto()
+    CRITERIA_NAMES = enum.auto()
+###END enum class SummaryColumnSource
 
 class MultiCriterionTargetRangeOutput(
         ResultOutput[
@@ -394,8 +415,18 @@ class MultiCriterionTargetRangeOutput(
     using a `CriterionTargetRange` instance to produce the given DataFrame.
     """
 
-    _default_columns: Sequence[CTCol]
+    _default_columns: list[CTCol]
     _default_column_titles: dict[CTCol, str]
+
+    class InitKwargsType(tp.TypedDict, total=False):
+        columns: tp.Optional[tp.Sequence[CTCol]]
+        column_titles: tp.Optional[tp.Dict[CTCol, str]]
+    ###END class MultiCriterionTargetRangeOutput.KwargType
+    """Type annotations for keyword arguments to the `__init__` method.
+
+    Can be used by subclasses that wish to override the `__init__` method
+    without repeating the entire function signature.
+    """
 
     def __init__(
             self,
@@ -407,14 +438,17 @@ class MultiCriterionTargetRangeOutput(
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
         super().__init__(criteria=criteria, writer=writer)
-        self._default_columns = columns if columns is not None else (
-            CTCol.INRANGE,
-            CTCol.DISTANCE,
-            CTCol.VALUE,
-        )
+        if columns is not None:
+            self._default_columns = list(columns)
+        elif not hasattr(self, '_default_columns'):
+            self._default_columns = list(columns) if columns is not None else [
+                CTCol.INRANGE,
+                CTCol.DISTANCE,
+                CTCol.VALUE,
+            ]
         if column_titles is not None:
             self._default_column_titles = column_titles
-        else:
+        elif not hasattr(self, '_default_column_titles'):
             self._default_column_titles = {
                 CTCol.INRANGE: 'Is in target range',
                 CTCol.DISTANCE: 'Rel. distance from target',
@@ -429,32 +463,263 @@ class MultiCriterionTargetRangeOutput(
             criteria: tp.Optional[Mapping[str, CriterionTargetRangeTypeVar]] \
                 = None,
             *,
-            columns: tp.Optional[Mapping[str, Sequence[CTCol]]] = None,
+            columns: tp.Optional[
+                Mapping[str, Sequence[CTCol]] | Sequence[CTCol]
+            ] = None,
             column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
                 = None,
-    ) -> Mapping[str, pd.DataFrame]:
-        """TODO: NEED TO ADD PROPER DOCSTRING"""
+            add_summary_output: tp.Optional[bool] = None,
+            columns_in_summary: tp.Optional[Sequence[CTCol]] = None,
+            summary_column_name_source: tp.Optional[SummaryColumnSource|str] \
+                = None,
+            summary_drop_levels: tp.Optional[str|Sequence[str]] = None,
+    ) -> dict[str, pd.DataFrame]:
+        """TODO: NEED TO ADD PROPER DOCSTRING
+
+        Note that the kwargs starting with `summary_` are only used if
+        `add_summary_output` is `True`, otherwise they are ignored.
+        """
+        if add_summary_output is None:
+            add_summary_output = False
         if criteria is None:
             criteria = self.criteria
         if columns is None:
-            columns = {
-                _name: self._default_columns
-                for _name in criteria
-            }
+            columns = self._default_columns
         if column_titles is None:
             column_titles = {
                 _name: self._default_column_titles
                 for _name in criteria
             }
-        return {
+        if add_summary_output:
+            if columns_in_summary is None:
+                if isinstance(columns, Mapping):
+                    raise ValueError(
+                        'Received `None` for `columns_in_summary`. If '
+                        '`add_summary_output` is `True`, and `columns` is a '
+                        'mapping from strings to column names (i.e., the '
+                        'columns to include can vary by criterion), '
+                        '`columns_in_summary` cannot be inferred from '
+                        '`columns` and must be specified.'
+                    )
+                columns_in_summary = columns
+        output_dict: dict[str, pd.DataFrame] = {
             _name: CriterionTargetRangeOutput(
                 criteria=_criterion,
                 writer=self.writer,
-                columns=columns[_name],
+                columns=columns[_name] if isinstance(columns, Mapping) \
+                    else columns,
                 column_titles=column_titles[_name],
             ).prepare_output(data)
             for _name, _criterion in criteria.items()
         }
+        if add_summary_output:
+            output_dict = self.prepare_summary_output(
+                criteria=criteria,
+                prepared_output=output_dict,
+                columns=columns_in_summary,
+                column_titles=column_titles,
+                column_name_source=summary_column_name_source,
+                drop_levels=summary_drop_levels,
+            ) | output_dict
+        return output_dict
     ###END def MultiCriterionTargetRangeOutput.prepare_output
 
+    def prepare_summary_output(
+            self,
+            data: tp.Optional[pyam.IamDataFrame] = None,
+            /,
+            criteria: tp.Optional[Mapping[str, CriterionTargetRangeTypeVar]] \
+                = None,
+            *,
+            prepared_output: tp.Optional[dict[str, pd.DataFrame]] = None,
+            columns: tp.Optional[Sequence[CTCol]] = None,
+            column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
+                = None,
+            column_name_source: tp.Optional[SummaryColumnSource|str] = None,
+            drop_levels: tp.Optional[str|Sequence[str]] = None,
+    ) -> dict[str, pd.DataFrame]:
+        """Create DataFrame with values from one column for all criteria.
+        
+        Returns a dict of DataFrames, where each DataFrame contains the values
+        for a single column from the output from each criterion, and has each
+        criterion along the columns.
+
+        **NB!** The current implementation of this method in practice assumes
+        that the `.get_values` method of each criterion will return a `Series`
+        with the same index levels, including both level names and level
+        ordering, after the levels listed in `drop_levels` have been removed. A
+        future version might take care to do whatever broadcasting, level
+        reordering and reindexing that is necessary to align the Series
+        properly. But for now you will need to ensure that all the criteria
+        return Series with the same index levels, and override them with
+        subclasses if necessary.
+
+        Parameters
+        ----------
+        data : pyam.IamDataFrame
+            The data to be used in the output.
+        criteria : Mapping[str, CriterionTargetRangeTypeVar], optional
+            The criteria to be used in the output. If `None` (default) and
+            `prepared_output` is `None`, `self.criteria` will be used.
+        prepared_output : Mapping[str, pd.DataFrame], optional
+            Already prepared output from `self.prepare_output`. Can be used to
+            boost efficiency, as the method will otherwise call
+            `self.prepare_output`. If you specify `prepared_output` you must
+            ensure that the `criteria` is identical to criteria passed to the
+            original call to `prepare_output` that was used to prepare the
+            DataFrames. If `columns` is specified, you must also ensure that it
+            is identical. `column_titles` will be ignored.
+        columns : Mapping[str, Sequence[CTCol]], optional
+            The columns to include summaries for. If `None` (default),
+            `self._default_columns` will be used.
+        column_titles : Mapping[str, Mapping[CTCol, str]], optional
+            The column titles to be used in the output. If `None` (default),
+            `self._default_column_titles` will be used. The titles will be the
+            keys of the returned dict.
+        column_name_source : SummaryColumnSource or str, optional
+            Where to get the column names of the summary DataFrames from (which
+            identify the criteria). If a str, the names will be taken from an
+            index level, which must then be present in the Series returned by
+            the `.get_values` method of each criterion in `criteria`. **NB!** If
+            you pass a string value for `column_name_source`, you will probably
+            also need to pass a value for `drop_levels`, to ensure that the
+            specified index level is not dropped, since dropping levels takes
+            place before obtaining column names. If `column_name_source` is a
+            `SummaryColumnSource` enum, the following will be used: 
+              * `SummaryColumnSource.DICT_KEYS`: The column names will be
+                taken from the dictionary keys of `criteria`.
+              * `SummaryColumnSource.CRITERIA_NAMES`: The column names will be
+                taken from the `.name` property of each criterion in `criteria`.
+            Optional, the deafult is `SummaryColumnSource.CRITERIA_NAMES`.
+        drop_levels : str or Sequence[str], optional
+            Level names to be dropped from the index of the returned DataFrame
+            from each criterion, and not included in the index of the DataFrame
+            returned from this method. If `column_name_source` is a string, the
+            corresponding level is always dropped (since it is used in the
+            column names), and **must be not** included here. Any levels with
+            the given names will be dropped, but no error is raised if the given
+            names are not present in the indexes of the Series returned by any
+            of the criteria in `criteria`. Optional, the default is to drop the
+            levels `variable` and the level names given in the
+            `.rename_variable_column` attribute of each `CriterionTargetRange`
+            instance in `criteria`. If you do not wish to drop any levels, pass
+            in an empty tuple or list.
+        """
+        if criteria is None:
+            criteria = self.criteria
+        if column_name_source is None:
+            column_name_source = SummaryColumnSource.CRITERIA_NAMES
+        if drop_levels is None:
+            drop_levels = ('variable',) + tuple(
+                _crit.rename_variable_column for _crit in criteria.values()
+                    if isinstance(_crit.rename_variable_column, str)
+            )
+        if isinstance(drop_levels, str):
+            drop_levels = (drop_levels,)
+        drop_levels = tuple(set(drop_levels))
+        if not isinstance(column_name_source, SummaryColumnSource):
+            if not isinstance(column_name_source, str):
+                raise TypeError(
+                    f"`column_name_source` must be either a `str` or "
+                    f"`SummaryColumnSource` enum, not {type(column_name_source)}"
+                )
+        full_output: dict[str, pd.DataFrame]
+        if prepared_output is None:
+            if data is None:
+                raise ValueError(
+                    'If `prepared_output` is `None`, `data` must not be `None`.'
+                )
+            full_output = self.prepare_output(
+                data,
+                criteria=criteria,
+                columns=columns,
+                column_titles=column_titles,
+            )
+        else:
+            if data is not None:
+                raise ValueError(
+                    'If `prepared_output` is not `None`, `data` must be `None`.'
+                )
+            full_output = prepared_output
+        # Detect column names, check that all DataFrames have the same columns,
+        # and that the number of column names is equal to the number of elements
+        # in `columns` if it is not `None`. Start with the column names of the
+        # first DataFrame, check the number of columns, then compare all other
+        # DataFrames to that.
+        output_columns: tuple[str, ...] \
+            = tuple(next(iter(full_output.values())).columns)
+        if columns is not None:
+            if len(columns) != len(output_columns):
+                raise ValueError(
+                    f'Expected the number of columns in `columns` to be '
+                    f'equal to the number of columns in the DataFrame returned '
+                    f'by `prepare_output`. Expected {len(columns)}, but found '
+                    f'{len(output_columns)}.'
+                )
+        output_column_set: set[str] = set(output_columns)
+        for _key, _df in full_output.items():
+            if (len(_df.columns) != len(output_columns)) \
+                    or (set(_df.columns) != output_column_set):
+                raise ValueError(
+                    f'Expected all columns in the DataFrames returned by '
+                    '`prepare_output` to have the same names. Expected '
+                    f'column names {output_columns}, but found '
+                    f'{_df.columns} for the criterion given by key '
+                    f'"{_key}".'
+                )
+        if len(drop_levels) > 0:
+            full_output = {
+                _key: _df.droplevel([_level for _level in drop_levels
+                                     if _level in _df.index.names])
+                    for _key, _df in full_output.items()
+            }
+        levels_first_df: tuple[str, ...] = tuple()
+        for _key, _df in full_output.items():
+            if len(levels_first_df) == 0:
+                levels_first_df = tuple(_df.index.names)
+            if not set(_df.index.names) == set(levels_first_df):
+                raise ValueError(
+                    'Expected all DataFrames returned by `prepare_output` to '
+                    'have the same index levels. The first DataFrame had '
+                    f'{levels_first_df}, but found {_df.index.names} for the '
+                    f'criterion given by key "{_key}".'
+                )
+        # Create a helper function to transform the output from a single
+        # criterion. Should be a Series, where the correct column has already
+        # been selected. The resulting DataFrames will be concatenated
+        # horizontally
+        def _transform_crit_output(
+                _crit_output: pd.Series,
+                _column_name_source: SummaryColumnSource|str,
+                _dict_key: str,
+                _name: str,
+        ) -> pd.DataFrame:
+            match _column_name_source:
+                case SummaryColumnSource.DICT_KEYS:
+                    return _crit_output.to_frame(name=_dict_key)
+                case SummaryColumnSource.CRITERIA_NAMES:
+                    return _crit_output.to_frame(name=_name)
+                case levelname if isinstance(levelname, str):
+                    return _crit_output.unstack(level=levelname)
+                case _:
+                    raise TypeError(
+                        f'`column_name_source` must be either a `str` or a '
+                        '`SummaryColumnSource` enum, not '
+                        f'{type(column_name_source)}.'
+                    )
+
+        return_dict: dict[str, pd.DataFrame] = {
+            _column: tp.cast(pd.DataFrame, pd.concat(
+                [
+                    _transform_crit_output(
+                        _crit_output=_df[_column],
+                        _column_name_source=column_name_source,
+                        _dict_key=_key,
+                        _name=criteria[_key].name,
+                    ) for _key, _df in full_output.items()
+                ],
+                axis=1,
+            )) for _column in output_columns
+        }
+        return return_dict
 ###END class MultiCriterionTargetRangeOutput
