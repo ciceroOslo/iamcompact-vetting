@@ -456,6 +456,64 @@ class MultiCriterionTargetRangeOutput(
             }
     ###END def MultiCriterionTargetRangeOutput.__init__
 
+
+    def _get_column_titles(
+            self,
+            column_titles: Mapping[str, Mapping[CTCol, str]] | \
+                Mapping[CTCol, str] | None,
+            criteria: Mapping[str, CriterionTargetRangeTypeVar],
+    ) -> dict[str, dict[CTCol, str]]:
+        """Get a column_titles dict to use, based on input parameters.
+
+        Used by methods that take a possibly optional `column_titles` parameter
+        to obtain an appropritate `column_titles` dict to use. Separated out as
+        a separate method, since the behavior neeeds to be the same across
+        methods, such as `prepare_output` and `prepare_summary_output`.
+
+        Parameters
+        ----------
+        column_titles : Mapping[str, Mapping[CTCol, str]] | Mapping[CTCol, str] | None
+            The column titles input parameter to process.
+        criteria : Mapping[str, CriterionTargetRangeTypeVar]
+            The `criteria` parameter that was passed to the calling method. Is
+            used to determine the keys of the returned dict.
+
+        Returns
+        -------
+        dict[str, dict[CTCol, str]]
+            The column titles dict to use. The dict will have the same keys as
+            `criteria`. If `column_titles` is a Mapping of Mappings, a `ValueError`
+            will be raised if it does not have the same keys as `criteria`. If
+            `column_titles` is a single Mapping from `CTCol` to `str`, the dict
+            will turn that mapping into a dict and use it as the value for all
+            items in the returned dict. If `column_titles` is None,
+            `self._default_column_titles` will be used as the value for all
+            items.
+
+        Raises
+        ------
+        ValueError
+            If `column_titles` is a Mapping of Mappings and it does not have the
+            same keys as `criteria`.
+        """
+        if column_titles is None:
+            return {_key: self._default_column_titles for _key in criteria}
+        elif not isinstance(column_titles, Mapping):
+            raise TypeError(
+                '`column_titles` must be None or a Mapping, not '
+                f'{type(column_titles)}'
+            )
+        if isinstance(list(column_titles.values())[0], Mapping):
+            if set(column_titles.keys()) != set(criteria):
+                raise ValueError(
+                    '`column_titles` must have the same keys as `criteria`.'
+                )
+            return dict(**column_titles)
+        else:
+            column_titles = tp.cast(Mapping[CTCol, str], column_titles)
+            return {_key: dict(column_titles) for _key in criteria.keys()}
+    ###END def MultiCriterionTargetRangeOutput._get_column_titles
+
     def prepare_output(
             self,
             data: pyam.IamDataFrame,
@@ -485,11 +543,10 @@ class MultiCriterionTargetRangeOutput(
             criteria = self.criteria
         if columns is None:
             columns = self._default_columns
-        if column_titles is None:
-            column_titles = {
-                _name: self._default_column_titles
-                for _name in criteria
-            }
+        column_titles = self._get_column_titles(
+            column_titles=column_titles,
+            criteria=criteria,
+        )
         if add_summary_output:
             if columns_in_summary is None:
                 if isinstance(columns, Mapping):
