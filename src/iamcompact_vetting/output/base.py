@@ -417,6 +417,7 @@ class MultiCriterionTargetRangeOutput(
 
     _default_columns: list[CTCol]
     _default_column_titles: dict[CTCol, str]
+    _default_summary_keys: dict[CTCol, str]
 
     class InitKwargsType(tp.TypedDict, total=False):
         columns: tp.Optional[tp.Sequence[CTCol]]
@@ -434,7 +435,8 @@ class MultiCriterionTargetRangeOutput(
             criteria: Mapping[str, CriterionTargetRangeTypeVar],
             writer: DataFrameMappingWriterTypeVar,
             columns: tp.Optional[tp.Sequence[CTCol]] = None,
-            column_titles: tp.Optional[tp.Dict[CTCol, str]] = None,
+            column_titles: tp.Optional[tp.Mapping[CTCol, str]] = None,
+            summary_keys: tp.Optional[tp.Mapping[CTCol, str]] = None,
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
         super().__init__(criteria=criteria, writer=writer)
@@ -447,14 +449,76 @@ class MultiCriterionTargetRangeOutput(
                 CTCol.VALUE,
             ]
         if column_titles is not None:
-            self._default_column_titles = column_titles
+            self._default_column_titles = dict(**column_titles)
         elif not hasattr(self, '_default_column_titles'):
             self._default_column_titles = {
                 CTCol.INRANGE: 'Is in target range',
                 CTCol.DISTANCE: 'Rel. distance from target',
                 CTCol.VALUE: 'Value',
             }
+        if summary_keys is not None:
+            self._default_summary_keys = dict(**summary_keys)
+        elif not hasattr(self, '_default_summary_keys'):
+            self._default_summary_keys = self._default_column_titles.copy()
     ###END def MultiCriterionTargetRangeOutput.__init__
+
+
+    def _get_column_titles(
+            self,
+            column_titles: Mapping[str, Mapping[CTCol, str]] | \
+                Mapping[CTCol, str] | None,
+            criteria: Mapping[str, CriterionTargetRangeTypeVar],
+    ) -> dict[str, dict[CTCol, str]]:
+        """Get a column_titles dict to use, based on input parameters.
+
+        Used by methods that take a possibly optional `column_titles` parameter
+        to obtain an appropritate `column_titles` dict to use. Separated out as
+        a separate method, since the behavior neeeds to be the same across
+        methods, such as `prepare_output` and `prepare_summary_output`.
+
+        Parameters
+        ----------
+        column_titles : Mapping[str, Mapping[CTCol, str]] | Mapping[CTCol, str] | None
+            The column titles input parameter to process.
+        criteria : Mapping[str, CriterionTargetRangeTypeVar]
+            The `criteria` parameter that was passed to the calling method. Is
+            used to determine the keys of the returned dict.
+
+        Returns
+        -------
+        dict[str, dict[CTCol, str]]
+            The column titles dict to use. The dict will have the same keys as
+            `criteria`. If `column_titles` is a Mapping of Mappings, a `ValueError`
+            will be raised if it does not have the same keys as `criteria`. If
+            `column_titles` is a single Mapping from `CTCol` to `str`, the dict
+            will turn that mapping into a dict and use it as the value for all
+            items in the returned dict. If `column_titles` is None,
+            `self._default_column_titles` will be used as the value for all
+            items.
+
+        Raises
+        ------
+        ValueError
+            If `column_titles` is a Mapping of Mappings and it does not have the
+            same keys as `criteria`.
+        """
+        if column_titles is None:
+            return {_key: self._default_column_titles for _key in criteria}
+        elif not isinstance(column_titles, Mapping):
+            raise TypeError(
+                '`column_titles` must be None or a Mapping, not '
+                f'{type(column_titles)}'
+            )
+        if isinstance(list(column_titles.values())[0], Mapping):
+            if set(column_titles.keys()) != set(criteria):
+                raise ValueError(
+                    '`column_titles` must have the same keys as `criteria`.'
+                )
+            return dict(**column_titles)
+        else:
+            column_titles = tp.cast(Mapping[CTCol, str], column_titles)
+            return {_key: dict(column_titles) for _key in criteria.keys()}
+    ###END def MultiCriterionTargetRangeOutput._get_column_titles
 
     def prepare_output(
             self,
@@ -473,6 +537,7 @@ class MultiCriterionTargetRangeOutput(
             summary_column_name_source: tp.Optional[SummaryColumnSource|str] \
                 = None,
             summary_drop_levels: tp.Optional[str|Sequence[str]] = None,
+            summary_keys: tp.Optional[Mapping[CTCol, str]] = None,
     ) -> dict[str, pd.DataFrame]:
         """TODO: NEED TO ADD PROPER DOCSTRING
 
@@ -485,11 +550,10 @@ class MultiCriterionTargetRangeOutput(
             criteria = self.criteria
         if columns is None:
             columns = self._default_columns
-        if column_titles is None:
-            column_titles = {
-                _name: self._default_column_titles
-                for _name in criteria
-            }
+        column_titles = self._get_column_titles(
+            column_titles=column_titles,
+            criteria=criteria,
+        )
         if add_summary_output:
             if columns_in_summary is None:
                 if isinstance(columns, Mapping):
@@ -520,6 +584,7 @@ class MultiCriterionTargetRangeOutput(
                 column_titles=column_titles,
                 column_name_source=summary_column_name_source,
                 drop_levels=summary_drop_levels,
+                summary_keys=summary_keys,
             ) | output_dict
         return output_dict
     ###END def MultiCriterionTargetRangeOutput.prepare_output
@@ -535,11 +600,12 @@ class MultiCriterionTargetRangeOutput(
             columns: tp.Optional[Sequence[CTCol]] = None,
             column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
                 = None,
+            summary_keys: tp.Optional[Mapping[CTCol, str]] = None,
             column_name_source: tp.Optional[SummaryColumnSource|str] = None,
             drop_levels: tp.Optional[str|Sequence[str]] = None,
     ) -> dict[str, pd.DataFrame]:
         """Create DataFrame with values from one column for all criteria.
-        
+
         Returns a dict of DataFrames, where each DataFrame contains the values
         for a single column from the output from each criterion, and has each
         criterion along the columns.
@@ -607,6 +673,14 @@ class MultiCriterionTargetRangeOutput(
         """
         if criteria is None:
             criteria = self.criteria
+        column_titles = self._get_column_titles(
+            column_titles=column_titles,
+            criteria=criteria,
+        )
+        if columns is None:
+            columns = self._default_columns
+        if summary_keys is None:
+            summary_keys = self._default_summary_keys
         if column_name_source is None:
             column_name_source = SummaryColumnSource.CRITERIA_NAMES
         if drop_levels is None:
@@ -641,32 +715,6 @@ class MultiCriterionTargetRangeOutput(
                     'If `prepared_output` is not `None`, `data` must be `None`.'
                 )
             full_output = prepared_output
-        # Detect column names, check that all DataFrames have the same columns,
-        # and that the number of column names is equal to the number of elements
-        # in `columns` if it is not `None`. Start with the column names of the
-        # first DataFrame, check the number of columns, then compare all other
-        # DataFrames to that.
-        output_columns: tuple[str, ...] \
-            = tuple(next(iter(full_output.values())).columns)
-        if columns is not None:
-            if len(columns) != len(output_columns):
-                raise ValueError(
-                    f'Expected the number of columns in `columns` to be '
-                    f'equal to the number of columns in the DataFrame returned '
-                    f'by `prepare_output`. Expected {len(columns)}, but found '
-                    f'{len(output_columns)}.'
-                )
-        output_column_set: set[str] = set(output_columns)
-        for _key, _df in full_output.items():
-            if (len(_df.columns) != len(output_columns)) \
-                    or (set(_df.columns) != output_column_set):
-                raise ValueError(
-                    f'Expected all columns in the DataFrames returned by '
-                    '`prepare_output` to have the same names. Expected '
-                    f'column names {output_columns}, but found '
-                    f'{_df.columns} for the criterion given by key '
-                    f'"{_key}".'
-                )
         if len(drop_levels) > 0:
             full_output = {
                 _key: _df.droplevel([_level for _level in drop_levels
@@ -709,17 +757,17 @@ class MultiCriterionTargetRangeOutput(
                     )
 
         return_dict: dict[str, pd.DataFrame] = {
-            _column: tp.cast(pd.DataFrame, pd.concat(
+            summary_keys[_column]: tp.cast(pd.DataFrame, pd.concat(
                 [
                     _transform_crit_output(
-                        _crit_output=_df[_column],
+                        _crit_output=_df[column_titles[_key][_column]],
                         _column_name_source=column_name_source,
                         _dict_key=_key,
                         _name=criteria[_key].name,
                     ) for _key, _df in full_output.items()
                 ],
                 axis=1,
-            )) for _column in output_columns
+            )) for _column in columns
         }
         return return_dict
 ###END class MultiCriterionTargetRangeOutput
