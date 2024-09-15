@@ -5,6 +5,8 @@ import typing as tp
 
 import pandas as pd
 
+from ..base import CTCol
+
 
 
 class PandasFormatParams(tp.TypedDict, total=False):
@@ -27,7 +29,7 @@ class PandasFormatParams(tp.TypedDict, total=False):
 
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(kw_only=True)
 class PandasFormaterMixin:
     """Mixin for style classes that format pandas DataFrames.
 
@@ -42,8 +44,7 @@ class PandasFormaterMixin:
 ###END dataclass class PandasFormaterMixin
 
 
-
-@dataclasses.dataclass
+@dataclasses.dataclass(kw_only=True)
 class PassFailStyles:
     """Styling for cells and columns with pass/fail data.
 
@@ -61,3 +62,35 @@ class PassFailStyles:
     """Used to indicate values that are missing or could not be assessed."""
 
 ###END dataclass class PassFailStyles
+
+
+@dataclasses.dataclass
+class InRangeStyles:
+    """Styling for cells that fall within or outside a certain range."""
+
+    IN_RANGE: str = ''
+    """Used to indicate cells that fall within a given range."""
+
+    ABOVE_RANGE: str = 'color: violet; font-weight: bold'
+    """Indicates cells that are above the range."""
+
+    BELOW_RANGE: str = 'color: red; font-weight: bold'
+    """Indicates cells that are below the range."""
+
+    NA: str = 'color: black; background-color: lightgrey'
+    """Used to indicate values that are missing or could not be assessed."""
+
+###END dataclass class InRangeStyles
+
+
+CriterionRangeStyles = dataclasses.make_dataclass(
+    'CriterionRangeStyles',
+    fields=[
+        (CTCol.INRANGE, PassFailStyles,
+         dataclasses.field(default_factory=PassFailStyles)),
+        (CTCol.VALUE, InRangeStyles,
+         dataclasses.field(default_factory=InRangeStyles)),
+        (CTCol.DISTANCE, InRangeStyles,
+         dataclasses.field(default_factory=InRangeStyles)),
+    ]
+)
