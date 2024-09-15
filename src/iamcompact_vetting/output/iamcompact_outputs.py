@@ -61,6 +61,10 @@ class IamCompactMultiTargetRangeOutput(
         CTCol.INRANGE: 'Passed',
         CTCol.VALUE: 'Value',
     }
+    _default_summary_keys = {  # Sets defaults, overrides the superclass
+        CTCol.INRANGE: 'Pass vs. Fail Summary',
+        CTCol.VALUE: 'Values Summary',
+    }
 
     def __init__(
             self,
