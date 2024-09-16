@@ -22,17 +22,29 @@ ResultsWriter
     `iamcompact_vetting.targets.CriterionTargetRange` subclasses).
 """
 from abc import ABC, abstractmethod
-from collections.abc import Sequence, Mapping
+from collections.abc import (
+    Hashable,
+    Mapping,
+    Sequence,
+)
 import enum
 import typing as tp
+import warnings
 
 import pandas as pd
-from pandas.io.formats.style import Styler as PandasStyler
+from pandas.io.formats.style import (
+    Styler as PandasStyler,
+)
+from pandas.io.formats.style_render import (
+    Subset as PandasSubset,
+)
 import pyam
 
 from .styling.base import (
     CTCol,
     CriterionTargetRangeOutputStyles,
+    InRangeStyles,
+    PassFailStyles,
 )
 from ..targets.target_classes import CriterionTargetRange
 
@@ -389,7 +401,7 @@ class CriterionTargetRangeOutput(
             column_titles: tp.Optional[Mapping[CTCol, str]] = None,
     ) -> PandasStyler:
         """Apply styles to the output.
-        
+
         The styles to apply to the different columns are taken from
         `self.style`. To use a different style than the one that was specified
         during intialization, set the `self.style` attribute.
@@ -411,6 +423,154 @@ class CriterionTargetRangeOutput(
                 'cannot be styled: '
                 f'{set(output.columns) - set(column_titles.values())}'
             )
+        return_style: PandasStyler = output.style
+        return_style = self.style_in_range_columns(
+            return_style,
+            subset=[column_titles[CTCol.INRANGE]],
+        )
+        return_style = self.style_value_columns(
+            return_style,
+            subset=column_titles[CTCol.VALUE],
+        )
+        return_style = self.style_distance_columns(
+            return_style,
+            subset=column_titles[CTCol.DISTANCE],
+        )
+        return return_style
+    ###END def CriterionTargetRangeOutput.style_output
+
+    def style_in_range_columns(
+            self,
+            styler: PandasStyler,
+            subset: tp.Optional[PandasSubset] = None,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
+    ) -> PandasStyler:
+        """Style columns that contain a True/False value for in-range status.
+
+        Parameters
+        ----------
+        styler : pandas Styler
+            The pandas Styler to be styled.
+        subset : str, array-like, or pandas.IndexSlice
+            Indexer for the subset of the Styler's DataFrame to which the
+            styling is applied. See, e.g., `Styler.format` in the pandas
+            documentation for more details. To style one or more columns, you
+            can pass a list of strings.
+        style : CriterionTargetRangeOutputStyles, optional
+            The object with styling information to apply.
+
+        Returns
+        -------
+        styler : pandas Styler
+            `styler` with styling applied
+        """
+        if style is None:
+            style = self.style
+        subset_styles: PassFailStyles = style.in_range
+        styler = styler.format(
+            subset=subset,
+            **(subset_styles.FORMAT)
+        )
+        styler = styler.map(
+            func=lambda x: subset_styles.NA if pd.isna(x) \
+                else subset_styles.PASS if x \
+                else subset_styles.FAIL,
+            subset=subset,
+        )
+        return styler
+    ###END def CriterionTargetRangeOutput.style_in_range_columns
+
+    def style_value_columns(
+            self,
+            styler: PandasStyler,
+            subset: tp.Optional[PandasSubset] = None,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
+    ) -> PandasStyler:
+        """Style columns with numeric values comparable to a target range.
+
+        Parameters
+        ----------
+        styler : pandas Styler
+            The pandas Styler to be styled.
+        subset : str, array-like, or pandas.IndexSlice
+            Indexer for the subset of the Styler's DataFrame to which the
+            styling is applied. See, e.g., `Styler.format` in the pandas
+            documentation for more details. To style one or more columns, you
+            can pass a list of strings.
+        style : CriterionTargetRangeOutputStyles, optional
+            The object with styling information to apply.
+
+        Returns
+        -------
+        styler : pandas Styler
+            `styler` with styling applied
+        """
+        if style is None:
+            style = self.style
+        criterion: CriterionTargetRange = self.criteria
+        subset_styles: InRangeStyles = style.value
+        styler = styler.format(
+            subset=subset,
+            **(subset_styles.FORMAT)
+        )
+        if criterion.range is None:
+            warnings.warn(
+                f'The criterion with name "{criterion.name}" does not have a '
+                '`range`. Value columns will not be styled.'
+            )
+            return styler
+        styler = styler.map(
+            func=lambda x: subset_styles.NA if pd.isna(x) \
+                else subset_styles.IN_RANGE if criterion.is_in_range(x) \
+                else subset_styles.BELOW_RANGE if criterion.is_below_range(x) \
+                else subset_styles.ABOVE_RANGE if criterion.is_above_range(x) \
+                else None,
+            subset=subset,
+        )
+        return styler
+    ###END def CriterionTargetRangeOutput.style_value_columns
+
+    def style_distance_columns(
+            self,
+            styler: PandasStyler,
+            subset: tp.Optional[PandasSubset] = None,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
+    ) -> PandasStyler:
+        """Style columns with distance values compared to a target range.
+
+        Parameters
+        ----------
+        styler : pandas Styler
+            The pandas Styler to be styled.
+        subset : str, array-like, or pandas.IndexSlice
+            Indexer for the subset of the Styler's DataFrame to which the
+            styling is applied. See, e.g., `Styler.format` in the pandas
+            documentation for more details. To style one or more columns, you
+            can pass a list of strings.
+        style : CriterionTargetRangeOutputStyles, optional
+            The object with styling information to apply.
+
+        Returns
+        -------
+        styler : pandas Styler
+            `styler` with styling applied
+        """
+        if style is None:
+            style = self.style
+        criterion: CriterionTargetRange = self.criteria
+        subset_styles: InRangeStyles = style.distance
+        styler = styler.format(
+            subset=subset,
+            **(subset_styles.FORMAT)
+        )
+        warnings.warn(
+            'Styling for distance columns is not yet implemented for this '
+            f'class ({self.__class__.__name__}). Styles other than number '
+            'formats will not be applied.'
+        )
+        return styler
+    ###END def CriterionTargetRangeOutput.style_distance_columns
+
 
     # def get_target_range_values(
     #         self,
