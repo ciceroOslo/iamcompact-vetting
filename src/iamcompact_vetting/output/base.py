@@ -26,9 +26,14 @@ from collections.abc import Sequence, Mapping
 import enum
 import typing as tp
 
-import pyam
 import pandas as pd
+from pandas.io.formats.style import Styler as PandasStyler
+import pyam
 
+from .styling.base import (
+    CTCol,
+    CriterionTargetRangeOutputStyles,
+)
 from ..targets.target_classes import CriterionTargetRange
 
 CritTypeVar = tp.TypeVar('CritTypeVar')
@@ -314,6 +319,7 @@ class CriterionTargetRangeOutput(
             writer: WriterTypeVar,
             columns: tp.Optional[Sequence[CTCol]] = None,
             column_titles: tp.Optional[Mapping[CTCol, str]] = None,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
         super().__init__(criteria=criteria, writer=writer)
@@ -333,6 +339,9 @@ class CriterionTargetRangeOutput(
                 CTCol.DISTANCE: 'Rel. distance from target',
                 CTCol.VALUE: 'Value',
             }
+        self.style: CriterionTargetRangeOutputStyles = \
+            style if style is not None \
+                else CriterionTargetRangeOutputStyles()
     ###END def CriterionTargetRangeOutput.__init__
 
     def prepare_output(
@@ -372,6 +381,36 @@ class CriterionTargetRangeOutput(
             results_df = results_df.rename(columns=column_titles)
         return results_df
     ###END def CriterionTargetRangeOutput.prepare_output
+
+    def style_output(
+            self,
+            output: pd.DataFrame,
+            *,
+            column_titles: tp.Optional[Mapping[CTCol, str]] = None,
+    ) -> PandasStyler:
+        """Apply styles to the output.
+        
+        The styles to apply to the different columns are taken from
+        `self.style`. To use a different style than the one that was specified
+        during intialization, set the `self.style` attribute.
+
+        Parameters
+        ----------
+        output : pd.DataFrame
+            The output to be styled.
+        column_titles : Mapping[CTCol, str], optional
+            A mapping from `CTCol` to the name of the columns in `output`. This
+            parameter is used to decide what styles to apply to which columns.
+            Optional, by default uses `self._default_column_titles`.
+        """
+        if column_titles is None:
+            column_titles = self._default_column_titles
+        if not set(output.columns).issubset(set(column_titles.values())):
+            raise ValueError(
+                'The following columns are not found in `column_titles`, and '
+                'cannot be styled: '
+                f'{set(output.columns) - set(column_titles.values())}'
+            )
 
     # def get_target_range_values(
     #         self,
