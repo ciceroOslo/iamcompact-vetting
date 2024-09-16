@@ -9,7 +9,7 @@ from pandas.io.formats.style_render import (
     Subset as PandasSubset,
 )
 
-from ..base import CTCol
+from ..column_names import CTCol
 
 
 
@@ -129,7 +129,8 @@ class CriterionTargetRangeOutputStyles(
 # Check that the field names of the `CriterionTargetRangeOutputStyles` class
 # match the enum names in `CTCol`. In the future, maybe this should be made into
 # __subclass_init__ method instead.
+ctcol_values: list[str] = [_member.value for _member in CTCol]
 assert all(
-    _field.name in CTCol
+    _field.name in ctcol_values
     for _field in dataclasses.fields(CriterionTargetRangeOutputStyles)
 )

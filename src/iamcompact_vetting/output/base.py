@@ -27,7 +27,6 @@ from collections.abc import (
     Mapping,
     Sequence,
 )
-import enum
 import typing as tp
 import warnings
 
@@ -40,8 +39,11 @@ from pandas.io.formats.style_render import (
 )
 import pyam
 
-from .styling.base import (
+from .column_names import (
     CTCol,
+    SummaryColumnSource,
+)
+from .styling.base import (
     CriterionTargetRangeOutputStyles,
     InRangeStyles,
     PassFailStyles,
@@ -300,14 +302,6 @@ class ResultOutput(
     ###END def ResultOutput.write_results
 
 ###END abstract class ResultOutput
-
-
-class CTCol(enum.StrEnum):
-    """Column names for DataFrames received by `CriterionTargetRangeOutput`."""
-    INRANGE = 'in_range'
-    DISTANCE = 'distance'
-    VALUE = 'value'
-###END enum CTCol
 
 
 class CriterionTargetRangeOutput(
@@ -594,12 +588,6 @@ DataFrameMappingWriterTypeVar = tp.TypeVar(
     bound=ResultsWriter[Mapping[str, pd.DataFrame], tp.Any],
 )
 
-
-class SummaryColumnSource(enum.Enum):
-    """Specifies where to get the column names of summary DataFrames from."""
-    DICT_KEYS = enum.auto()
-    CRITERIA_NAMES = enum.auto()
-###END enum class SummaryColumnSource
 
 class MultiCriterionTargetRangeOutput(
         ResultOutput[
