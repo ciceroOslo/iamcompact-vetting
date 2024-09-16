@@ -410,6 +410,32 @@ class CriterionTargetRange:
         return self.range[0] <= value <= self.range[1]
     ###END def CriterionTargetRange.in_range
 
+    def is_below_range(self, value: float) -> bool|NAType:
+        """Checks whether a single number is below the target range.
+
+        Only works on single numbers. Pass it to the pandas `apply` method if
+        you have a Series or DataFrame of numbers.
+        """
+        if pd.isna(value):
+            return pd.NA
+        if self.range is None:
+            raise ValueError('`self.range` must be specified to use `below_range`.')
+        return value < self.range[0]
+    ###END def CriterionTargetRange.below_range
+
+    def is_above_range(self, value: float) -> bool|NAType:
+        """Checks whether a single number is above the target range.
+
+        Only works on single numbers. Pass it to the pandas `apply` method if
+        you have a Series or DataFrame of numbers.
+        """
+        if pd.isna(value):
+            return pd.NA
+        if self.range is None:
+            raise ValueError('`self.range` must be specified to use `above_range`.')
+        return value > self.range[1]
+    ###END def CriterionTargetRange.above_range
+
     def get_in_range(
             self,
             file: pyam.IamDataFrame,
