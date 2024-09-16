@@ -588,6 +588,11 @@ DataFrameMappingWriterTypeVar = tp.TypeVar(
     bound=ResultsWriter[Mapping[str, pd.DataFrame], tp.Any],
 )
 
+CriterionTargetRangeOutputTypeVar = tp.TypeVar(
+    'CriterionTargetRangeOutputTypeVar',
+    bound=CriterionTargetRangeOutput
+)
+
 
 class MultiCriterionTargetRangeOutput(
         ResultOutput[
@@ -597,17 +602,28 @@ class MultiCriterionTargetRangeOutput(
             DataFrameMappingWriterTypeVar,
             tp.Any,
         ],
+        tp.Generic[
+            CriterionTargetRangeTypeVar,
+            CriterionTargetRangeOutputTypeVar,
+            DataFrameMappingWriterTypeVar
+        ]
 ):
     """Class to make output for multiple CriterionTargetRange instances.
 
     The class takes a dictionary of `CriterionTargetRangeOutput` instances with
     str names as keys, and returns a dictionary of DataFrames, each produced
     using a `CriterionTargetRange` instance to produce the given DataFrame.
+
+    The dictionary of `CriterionTargetRangeOutput` instances can be subclasses
+    of `CriterionTargetRangeOutput`. If so, you should pass the subclass type
+    to the `criteria_class` keyword argument of the `__init__` method. The
+    implementation of this class assumes that all the 
     """
 
     _default_columns: list[CTCol]
     _default_column_titles: dict[CTCol, str]
     _default_summary_keys: dict[CTCol, str]
+    _default_summary_column_name_source: SummaryColumnSource
 
     class InitKwargsType(tp.TypedDict, total=False):
         columns: tp.Optional[tp.Sequence[CTCol]]
@@ -627,8 +643,14 @@ class MultiCriterionTargetRangeOutput(
             columns: tp.Optional[tp.Sequence[CTCol]] = None,
             column_titles: tp.Optional[tp.Mapping[CTCol, str]] = None,
             summary_keys: tp.Optional[tp.Mapping[CTCol, str]] = None,
+            criteria_output_class: tp.Type[CriterionTargetRangeOutputTypeVar] \
+                = CriterionTargetRangeOutput,
+            summary_column_name_source: tp.Optional[SummaryColumnSource] = None,
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
+        self.criteria_output_class: \
+            tp.Final[tp.Type[CriterionTargetRangeOutputTypeVar]] \
+                = criteria_output_class
         super().__init__(criteria=criteria, writer=writer)
         if columns is not None:
             self._default_columns = list(columns)
@@ -650,6 +672,12 @@ class MultiCriterionTargetRangeOutput(
             self._default_summary_keys = dict(**summary_keys)
         elif not hasattr(self, '_default_summary_keys'):
             self._default_summary_keys = self._default_column_titles.copy()
+        if summary_column_name_source is not None:
+            self._default_summary_column_name_source = \
+                summary_column_name_source
+        elif not hasattr(self, '_default_summary_column_name_source'):
+            self._default_summary_column_name_source = \
+                SummaryColumnSource.CRITERIA_NAMES
     ###END def MultiCriterionTargetRangeOutput.__init__
 
 
@@ -757,7 +785,7 @@ class MultiCriterionTargetRangeOutput(
                     )
                 columns_in_summary = columns
         output_dict: dict[str, pd.DataFrame] = {
-            _name: CriterionTargetRangeOutput(
+            _name: self.criteria_output_class(
                 criteria=_criterion,
                 writer=self.writer,
                 columns=columns[_name] if isinstance(columns, Mapping) \
@@ -872,7 +900,7 @@ class MultiCriterionTargetRangeOutput(
         if summary_keys is None:
             summary_keys = self._default_summary_keys
         if column_name_source is None:
-            column_name_source = SummaryColumnSource.CRITERIA_NAMES
+            column_name_source = self._default_summary_column_name_source
         if drop_levels is None:
             drop_levels = ('variable',) + tuple(
                 _crit.rename_variable_column for _crit in criteria.values()
@@ -960,4 +988,75 @@ class MultiCriterionTargetRangeOutput(
             )) for _column in columns
         }
         return return_dict
+
+    ###END def MultiCriterionTargetRangeOutput.prepare_summary_output
+
+    def style_output(
+            self,
+            output: dict[str, pd.DataFrame],
+            criteria: tp.Optional[Mapping[str, CriterionTargetRangeTypeVar]] \
+                = None,
+            column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
+                = None,
+            include_summary: tp.Optional[bool] = None,
+            summary_keys: tp.Optional[Mapping[CTCol, str]] = None,
+            summary_column_name_source: tp.Optional[SummaryColumnSource] = None,
+    ) -> dict[str, PandasStyler]:
+        """Style the output from `prepare_output`.
+
+        Parameters
+        ----------
+        output : dict[str, pandas.DataFrame]
+            The output from `prepare_output`.
+        criteria : Mapping[str, CriterionTargetRangeTypeVar], optional
+            A mapping from  the keys of `output` to `CriterionTargetRange`
+            instances. Optional, defaults to `self.criteria`. Must be the same
+            criteria instances that were used to prepare the output.
+        column_titles : Mapping[str, Mapping[CTCol, str]], optional
+            A mapping from the keys of `output` to a mapping from column IDs
+            (`CTCol` enums) to the column titles used in the output. Optional,
+            defaults to `self._default_column_titles`. Must be the same as the
+            column titles used to prepare the output.
+        include_summary : bool, optional
+            Whether to include the summary columns in the output. Optional,
+            defaults to False.
+        summary_keys : Mapping[CTCol, str], optional
+            A mapping from the column IDs (`CTCol` enums) to the keys of
+            `output` that contain the summary columns. Optional, defaults to
+            `self._default_summary_keys`. Must be the same as the summary keys
+            used to prepare the output.
+        summary_column_name_source : SummaryColumnSource, optional
+            Specifies where to get the column names of summary DataFrames from.
+            Optional, defaults to `self._default_summary_column_name_source`.
+            Must be the same as the column name source used to prepare the
+            output.
+        """
+        if criteria is None:
+            criteria = self.criteria
+        column_titles = self._get_column_titles(
+            column_titles=column_titles,
+            criteria=criteria,
+        )
+        reverse_column_titles: dict[str, dict[str, CTCol]] = {
+            _key: {v: k for k, v in _ct.items()}
+            for _key, _ct in column_titles.items()
+        }
+        if include_summary is False:
+            include_summary = False
+        if summary_keys is None:
+            summary_keys = self._default_summary_keys
+        if summary_column_name_source is None:
+            summary_column_name_source = self._default_summary_column_name_source
+        criteria_output: dict[str, CriterionTargetRangeOutputTypeVar] = {
+            _key: self.criteria_output_class(
+                criteria=_criterion,
+                writer=self.writer,
+                columns=[
+                    reverse_column_titles[_key][_col]
+                    for _col in output[_key].columns
+                ],
+                column_titles=column_titles[_key],
+            ) for _key, _criterion in criteria.items()
+        }
+
 ###END class MultiCriterionTargetRangeOutput
