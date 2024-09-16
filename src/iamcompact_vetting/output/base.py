@@ -430,11 +430,11 @@ class CriterionTargetRangeOutput(
         )
         return_style = self.style_value_columns(
             return_style,
-            subset=column_titles[CTCol.VALUE],
+            subset=[column_titles[CTCol.VALUE]],
         )
         return_style = self.style_distance_columns(
             return_style,
-            subset=column_titles[CTCol.DISTANCE],
+            subset=[column_titles[CTCol.DISTANCE]],
         )
         return return_style
     ###END def CriterionTargetRangeOutput.style_output
@@ -521,9 +521,12 @@ class CriterionTargetRangeOutput(
             return styler
         styler = styler.map(
             func=lambda x: subset_styles.NA if pd.isna(x) \
-                else subset_styles.IN_RANGE if criterion.is_in_range(x) \
-                else subset_styles.BELOW_RANGE if criterion.is_below_range(x) \
-                else subset_styles.ABOVE_RANGE if criterion.is_above_range(x) \
+                else subset_styles.IN_RANGE \
+                    if criterion.is_in_range(x) == True \
+                else subset_styles.BELOW_RANGE \
+                    if criterion.is_below_range(x) == True \
+                else subset_styles.ABOVE_RANGE \
+                    if criterion.is_above_range(x) == True \
                 else None,
             subset=subset,
         )
