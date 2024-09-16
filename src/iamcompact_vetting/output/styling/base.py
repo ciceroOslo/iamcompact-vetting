@@ -85,7 +85,7 @@ class InRangeStyles:
 
 @dataclasses.dataclass(kw_only=True)
 class CriterionTargetRangeOutputStyles(
-    Mapping[str, PassFailStyles|InRangeStyles]
+    Mapping[str|CTCol, PassFailStyles|InRangeStyles]
 ):
     """Styles for output of `CriterionTargetRangeOutput.
     
@@ -109,8 +109,8 @@ class CriterionTargetRangeOutputStyles(
 
     # Implement abstract methods from `collections.abc.Mapping`
 
-    def __getitem__(self, key: str) -> PassFailStyles|InRangeStyles:
-        return getattr(self, key)
+    def __getitem__(self, key: str|CTCol) -> PassFailStyles|InRangeStyles:
+        return getattr(self, str(key))
     ###END def CriterionTargetRangeOutputStyles.__getitem__
 
     def __len__(self) -> int:
