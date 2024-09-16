@@ -4,24 +4,27 @@ import dataclasses
 import typing as tp
 
 import pandas as pd
+from pandas.io.formats.style_render import (
+    ExtFormatter as PandasExtFormatter,
+    Subset as PandasSubset,
+)
 
 from ..base import CTCol
 
 
 
 class PandasFormatParams(tp.TypedDict, total=False):
-    """Parameters accepted by `pandas.DataFrame.style.format`."""
+    """Parameters accepted by `pandas.DataFrame.style.format`.
 
-    formatter: tp.Optional[
-        str | tp.Callable[[tp.Any], str] \
-            | dict[str, str | tp.Callable[[tp.Any], str]]
-    ]
-    subset: tp.Optional[
-        Hashable | Sequence[Hashable] | tuple[Hashable|slice, ...]
-    ]
+    The `subset` parameter is excluded, since that will often be passed in
+    separately to the `pandas.DataFrame.style.format` method, and does not
+    contain styling information in itself.
+    """
+
+    formatter: tp.Optional[PandasExtFormatter]
     na_rep: tp.Optional[str]
     precision: tp.Optional[int]
-    decimal: tp.Optional[str]
+    decimal: str
     thousands: tp.Optional[str]
     escape: tp.Optional[str | tp.Literal['html', 'latex', 'latex-math']]
     hyperlinks: tp.Optional[tp.Literal['html', 'latex']]
@@ -45,7 +48,7 @@ class PandasFormaterMixin:
 
 
 @dataclasses.dataclass(kw_only=True)
-class PassFailStyles:
+class PassFailStyles(PandasFormaterMixin):
     """Styling for cells and columns with pass/fail data.
 
     Each attribute provides a CSS string that to be applied to cells with the
@@ -65,7 +68,7 @@ class PassFailStyles:
 
 
 @dataclasses.dataclass
-class InRangeStyles:
+class InRangeStyles(PandasFormaterMixin):
     """Styling for cells that fall within or outside a certain range."""
 
     IN_RANGE: str = ''
