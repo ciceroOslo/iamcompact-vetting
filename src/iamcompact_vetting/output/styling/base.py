@@ -83,14 +83,50 @@ class InRangeStyles:
 ###END dataclass class InRangeStyles
 
 
-CriterionRangeStyles = dataclasses.make_dataclass(
-    'CriterionRangeStyles',
-    fields=[
-        (CTCol.INRANGE, PassFailStyles,
-         dataclasses.field(default_factory=PassFailStyles)),
-        (CTCol.VALUE, InRangeStyles,
-         dataclasses.field(default_factory=InRangeStyles)),
-        (CTCol.DISTANCE, InRangeStyles,
-         dataclasses.field(default_factory=InRangeStyles)),
-    ]
+@dataclasses.dataclass(kw_only=True)
+class CriterionTargetRangeOutputStyles(
+    Mapping[str, PassFailStyles|InRangeStyles]
+):
+    """Styles for output of `CriterionTargetRangeOutput.
+    
+    Note that the attribute names of this dataclass must be the same as the
+    string values of the enums in `CTCol`. If the latter change, the attribute
+    names here must change as well.
+
+    Also note that if you subclass this dataclass and add new attributes, you
+    must prefix the subclass definition with the `@dataclasses.dataclass`
+    decorator.
+    """
+
+    in_range: PassFailStyles = dataclasses.field(default_factory=PassFailStyles)
+    """Styling for cells in the `CTCol.INRANGE` column."""
+
+    value: InRangeStyles = dataclasses.field(default_factory=InRangeStyles)
+    """Styling for cells in the `CTCol.VALUE` column."""
+
+    distance: InRangeStyles = dataclasses.field(default_factory=InRangeStyles)
+    """Styling for cells in the `CTCol.DISTANCE` column."""
+
+    # Implement abstract methods from `collections.abc.Mapping`
+
+    def __getitem__(self, key: str) -> PassFailStyles|InRangeStyles:
+        return getattr(self, key)
+    ###END def CriterionTargetRangeOutputStyles.__getitem__
+
+    def __len__(self) -> int:
+        return len(dataclasses.fields(self))
+    ###END def CriterionTargetRangeOutputStyles.__len__
+
+    def __iter__(self) -> tp.Iterator[str]:
+        return (_field.name for _field in dataclasses.fields(self))
+    ###END def CriterionTargetRangeOutputStyles.__iter__
+
+###END class CriterionTargetRangeOutputStyles
+
+# Check that the field names of the `CriterionTargetRangeOutputStyles` class
+# match the enum names in `CTCol`. In the future, maybe this should be made into
+# __subclass_init__ method instead.
+assert all(
+    _field.name in CTCol
+    for _field in dataclasses.fields(CriterionTargetRangeOutputStyles)
 )
