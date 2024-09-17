@@ -64,6 +64,10 @@ through its `write` method."""
 WriteReturnTypeVar = tp.TypeVar('WriteReturnTypeVar')
 """TypeVar for the datatype to be returned by the `write` method of a
 `ResultsWriter` subclass."""
+StyleTypeVar = tp.TypeVar('StylerTypeVar')
+"""TypeVar for styler classes, such as `pandas.io.formats.style.Styler`."""
+StyledOutputTypeVar = tp.TypeVar('StyledOutputTypeVar')
+"""TypeVar for output that has been styled."""
 
 
 class ResultsWriter(ABC, tp.Generic[OutputDataTypeVar, WriteReturnTypeVar]):
@@ -315,6 +319,211 @@ class ResultOutput(
     ###END def ResultOutput.write_results
 
 ###END abstract class ResultOutput
+
+
+class StyledResultOutput(
+        ResultOutput[
+            CritTypeVar,
+            ResultsInputDataTypeVar,
+            OutputDataTypeVar,
+            WriterTypeVar,
+            WriteReturnTypeVar
+        ],
+        tp.Generic[
+            CritTypeVar,
+            ResultsInputDataTypeVar,
+            OutputDataTypeVar,
+            WriterTypeVar,
+            WriteReturnTypeVar,
+            StyleTypeVar,
+            StyledOutputTypeVar
+        ]
+):
+    """ResultsOutput class with styling support.
+
+    The class adds parameters for specifying whether styling should be used in
+    the `prepare_output` and `write_output` methods, and to set a styler object
+    as an instance attribute. Actual styling has to implemented by subclasses,
+    by specifying the class of styler objects, and by implementing the
+    `style_output` method.
+    """
+
+    def __init__(
+            self,
+            *,
+            criteria: CritTypeVar,
+            writer: WriterTypeVar,
+            style: StyleTypeVar,
+    ) -> None:
+        """
+        All the parameters are keyword-only, to allow for future changes in the
+        number of input parameters.
+
+        Parameters
+        ----------
+        criteria : CritTypeVar
+            The criteria that will be used to produce results that are to be
+            output by the `ResultOutput` instance.
+        writer : WriterTypeVar
+            The writer to be used to write the output.
+        styler : StylerTypeVar
+            The styler object to be used to style the output. The type of object
+            and its behavior must be determined by subclasses.
+        """
+        super().__init__(criteria=criteria, writer=writer)
+        self.style: StyleTypeVar = style
+    ###END def StyledResultOutput.__init__
+
+    @abstractmethod
+    def style_output(
+            self,
+            output: OutputDataTypeVar,
+    ) -> StyledOutputTypeVar:
+        """Style output prepared by `self.prepare_output`.
+
+        Abstract method, must be implemented by subclasses.
+        """
+        raise NotImplementedError
+    ###END abstractmethod def StyledResultOutput.style_output
+
+    def prepare_styled_output(
+            self,
+            data: ResultsInputDataTypeVar,
+            *,
+            prepare_output_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+            style_output_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+            **kwargs,
+    ) -> StyledOutputTypeVar:
+        """Prepare output and style it.
+
+        Calls `self.prepare_output` on the input data, and then
+        `self.style_output` on the output.
+
+        Parameters
+        ----------
+        data : ResultsInputDataTypeVar
+            The data to be used to prepare the output.
+        prepare_output_kwargs : dict, optional
+            Additional keyword arguments to be passed to `prepare_output`.
+        style_output_kwargs : dict, optional
+            Additional keyword arguments to be passed to `style_output`.
+        **kwargs
+            Additional keyword arguments are passed to both `prepare_output`
+            and `style_output`. They will be overridden by keywords that are
+            present in `prepare_output_kwargs` or `style_output_kwargs`.
+
+        Returns
+        -------
+        StyledOutputTypeVar
+            The styled output.
+        """
+        if prepare_output_kwargs is None:
+            prepare_output_kwargs = dict()
+        if style_output_kwargs is None:
+            style_output_kwargs = dict()
+        output: OutputDataTypeVar = self.prepare_output(
+            data,
+            **(kwargs | prepare_output_kwargs),
+        )
+        styled_output: StyledOutputTypeVar = self.style_output(
+            output,
+            **(kwargs | style_output_kwargs),
+        )
+        return styled_output
+    ###END def StyledResultOutput.prepare_styled_output
+
+    def write_output(
+            self,
+            output: OutputDataTypeVar|StyledOutputTypeVar,
+            /,
+            writer: tp.Optional[WriterTypeVar] = None,
+            **kwargs,
+    ) -> WriteReturnTypeVar:
+        """Write output data to the format written by `writer`.
+
+        This method is used for result outputs that have already been prepared
+        into the proper format, and possibly styled, usually by
+        `self.prepare_output` or `self.prepare_styled_output`. To write outputs
+        directly based on input data, use `self.write_results`.
+
+        The parameter `output` is assumed to be either unstyled or styled
+        output, but `writer` must support whichever type is used.
+
+        Parameters
+        ----------
+        output : OutputDataTypeVar or StyledOutputTypeVar
+            The data to be written, prepared into the proper output data
+            structure, usually through `self.prepare_output` or
+            `self.prepare_styled_output`.
+        writer : tp.Optional[WriterTypeVar]
+            The writer to be used to write the output. If `None`, the
+            `self.writer` attribute is used.
+        **kwargs
+            Additional keyword arguments to be passed to `writer.write`.
+
+        Returns
+        -------
+        WriteReturnTypeVar
+            The return value of `writer.write`.
+        """
+        if writer is None:
+            writer = self.writer
+        return writer.write(output, **kwargs)
+    ###END def StyledResultOutput.write_output
+
+    def write_results(
+            self,
+            data: ResultsInputDataTypeVar,
+            /,
+            criteria: tp.Optional[CritTypeVar] = None,
+            *,
+            writer: tp.Optional[WriterTypeVar] = None,
+            style_output: tp.Optional[bool] = None,
+            prepare_output_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+            style_output_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+            write_output_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+    ) -> tuple[OutputDataTypeVar|StyledOutputTypeVar, WriteReturnTypeVar]:
+        """See the documentation for `ResultsOutput.write_results`.
+
+        Output is styled before writing if `style_output` is `True`. The
+        parameters of `style_output_kwargs` are passed as keyword arguments
+        to `self.style_output`. Apart from this, the behavior and parameters
+        are the same as for `ResultsOutput.write_results`.
+        """
+        if style_output is None:
+            style_output = True
+        if not style_output:
+            return super().write_results(
+                data,
+                criteria=criteria,
+                writer=writer,
+                prepare_output_kwargs=prepare_output_kwargs,
+                write_output_kwargs=write_output_kwargs,
+            )
+        if prepare_output_kwargs is None:
+            prepare_output_kwargs = dict()
+        if style_output_kwargs is None:
+            style_output_kwargs = dict()
+        if write_output_kwargs is None:
+            write_output_kwargs = dict()
+        if criteria is None:
+            criteria = self.criteria
+        styled_output: StyledOutputTypeVar = self.prepare_styled_output(
+            data,
+            criteria=criteria,
+            prepare_output_kwargs=prepare_output_kwargs,
+            style_output_kwargs=style_output_kwargs,
+        )
+        write_returnval: WriteReturnTypeVar = self.write_output(
+            styled_output,
+            writer=writer,
+            **write_output_kwargs,
+        )
+        return (styled_output, write_returnval)
+    ###END def StyledResultOutput.write_results
+
+###END class StyledResultOutput
+
 
 
 class CriterionTargetRangeOutput(
