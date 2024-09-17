@@ -527,12 +527,14 @@ class StyledResultOutput(
 
 
 class CriterionTargetRangeOutput(
-        ResultOutput[
+        StyledResultOutput[
             CriterionTargetRangeTypeVar,
             pyam.IamDataFrame,
             pd.DataFrame,
             WriterTypeVar,
             WriteReturnTypeVar,
+            CriterionTargetRangeOutputStyles,
+            PandasStyler
         ],
 ):
     """TODO: NEED TO ADD PROPER DOCSTRING"""
@@ -550,7 +552,12 @@ class CriterionTargetRangeOutput(
             style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
-        super().__init__(criteria=criteria, writer=writer)
+        super().__init__(
+            criteria=criteria,
+            writer=writer,
+            style=style if style is not None \
+                else CriterionTargetRangeOutputStyles(),
+        )
         if columns is not None:
             self._default_columns = list(columns)
         elif not hasattr(self, '_default_columns'):
@@ -567,9 +574,6 @@ class CriterionTargetRangeOutput(
                 CTCol.DISTANCE: 'Rel. distance from target',
                 CTCol.VALUE: 'Value',
             }
-        self.style: CriterionTargetRangeOutputStyles = \
-            style if style is not None \
-                else CriterionTargetRangeOutputStyles()
         self.styling_funcs: tp.Final[dict[CTCol, StylingFunc]] = {
             CTCol.INRANGE: self.style_in_range_columns,
             CTCol.VALUE: self.style_value_columns,
@@ -818,12 +822,14 @@ CriterionTargetRangeOutputTypeVar = tp.TypeVar(
 
 
 class MultiCriterionTargetRangeOutput(
-        ResultOutput[
+        StyledResultOutput[
             Mapping[str, CriterionTargetRangeTypeVar],
             pyam.IamDataFrame,
             dict[str, pd.DataFrame],
             DataFrameMappingWriterTypeVar,
             tp.Any,
+            Mapping[str, CriterionTargetRangeOutputStyles|None],
+            dict[str, PandasStyler]
         ],
         tp.Generic[
             CriterionTargetRangeTypeVar,
@@ -845,6 +851,7 @@ class MultiCriterionTargetRangeOutput(
 
     _default_columns: list[CTCol]
     _default_column_titles: dict[CTCol, str]
+    _default_include_summary: bool
     _default_summary_keys: dict[CTCol, str]
     _default_summary_column_name_source: SummaryColumnSource
 
@@ -865,16 +872,28 @@ class MultiCriterionTargetRangeOutput(
             writer: DataFrameMappingWriterTypeVar,
             columns: tp.Optional[tp.Sequence[CTCol]] = None,
             column_titles: tp.Optional[tp.Mapping[CTCol, str]] = None,
+            include_summary: tp.Optional[bool] = None,
             summary_keys: tp.Optional[tp.Mapping[CTCol, str]] = None,
             criteria_output_class: tp.Type[CriterionTargetRangeOutputTypeVar] \
                 = CriterionTargetRangeOutput,
             summary_column_name_source: tp.Optional[SummaryColumnSource] = None,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] \
+                | Mapping[str, tp.Optional[CriterionTargetRangeOutputStyles]] \
+                    = None
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
         self.criteria_output_class: \
             tp.Final[tp.Type[CriterionTargetRangeOutputTypeVar]] \
                 = criteria_output_class
-        super().__init__(criteria=criteria, writer=writer)
+        if isinstance(style, CriterionTargetRangeOutputStyles) or style is None:
+            style = {_key: style for _key in criteria.keys()}
+        if not isinstance(style, Mapping):
+            raise TypeError(
+                '`style` must be an instance of '
+                '`CriterionTargetRangeOutputStyles`, None, or a Mapping from '
+                'string criteria keys to CriterionTargetRangeOutputStyles.'
+            )
+        super().__init__(criteria=criteria, writer=writer, style=style)
         if columns is not None:
             self._default_columns = list(columns)
         elif not hasattr(self, '_default_columns'):
@@ -891,6 +910,11 @@ class MultiCriterionTargetRangeOutput(
                 CTCol.DISTANCE: 'Rel. distance from target',
                 CTCol.VALUE: 'Value',
             }
+        if include_summary is not None:
+            self._default_include_summary = include_summary
+        else:
+            self._default_include_summary = True if summary_keys is not None \
+                else False
         if summary_keys is not None:
             self._default_summary_keys = dict(**summary_keys)
         elif not hasattr(self, '_default_summary_keys'):
@@ -986,7 +1010,7 @@ class MultiCriterionTargetRangeOutput(
         `add_summary_output` is `True`, otherwise they are ignored.
         """
         if add_summary_output is None:
-            add_summary_output = False
+            add_summary_output = self._default_include_summary
         if criteria is None:
             criteria = self.criteria
         if columns is None:
@@ -1266,7 +1290,7 @@ class MultiCriterionTargetRangeOutput(
             for _key, _ct in column_titles.items()
         }
         if include_summary is None:
-            include_summary = False
+            include_summary = self._default_include_summary
         if summary_keys is None:
             summary_keys = self._default_summary_keys
         if summary_column_name_source is None:
@@ -1280,6 +1304,7 @@ class MultiCriterionTargetRangeOutput(
                     for _col in output[_key].columns
                 ],
                 column_titles=column_titles[_key],
+                style=self.style[_key],
             ) for _key, _criterion in criteria.items()
         }
         return_dict: dict[str, PandasStyler] = {
