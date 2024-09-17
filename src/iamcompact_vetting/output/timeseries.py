@@ -3,11 +3,13 @@
 Currently this module only contains classes for writing comparisons between
 IAM model results and harmonisation data or other timeseries reference data.
 """
-import typing as tp
 from collections.abc import Sequence, Mapping, Callable
+import typing as tp
+import warnings
 
-import pyam
 import pandas as pd
+from pandas.io.formats.style import Styler as PandasStyler
+import pyam
 
 from ..targets.target_classes import (
     CriterionTargetRange,
@@ -23,8 +25,10 @@ from .base import (
     DataFrameMappingWriterTypeVar,
     NoWriter,
     ResultOutput,
+    StyledResultOutput,
     WriteReturnTypeVar,
     WriterTypeVar,
+    CriterionTargetRangeOutputStyles,
 )
 
 
@@ -113,6 +117,10 @@ TimeseriesOutputTypeVar = tp.TypeVar(
     'TimeseriesOutputTypeVar',
     bound=TimeseriesRefFullComparisonOutput,
 )
+CTRangeOutputStyleTypeVar = tp.TypeVar(
+    'CTRangeOutputStyleTypeVar',
+    bound=CriterionTargetRangeOutputStyles,
+)
 
 
 class MissingDefaultTypeError(Exception):
@@ -138,13 +146,16 @@ class TimeseriesRefComparisonAndTargetOutput(
         SummaryOutputTypeVar,
         DataFrameMappingWriterTypeVar,
         WriteReturnTypeVar,
+        CTRangeOutputStyleTypeVar,
     ],
-    ResultOutput[
+    StyledResultOutput[
         TimeseriesRefCriterionTypeVar,
         pyam.IamDataFrame,
         dict[str, pd.DataFrame],
         DataFrameMappingWriterTypeVar | NoWriter,
         WriteReturnTypeVar,
+        CTRangeOutputStyleTypeVar|None,
+        dict[str, PandasStyler],
     ]
 ):
     """Base class to output full comparison and targets for TimeseriesRefCriterion.
@@ -200,6 +211,7 @@ class TimeseriesRefComparisonAndTargetOutput(
                 tp.Type[SummaryOutputTypeVar]
             ] = None,
             writer: tp.Optional[DataFrameMappingWriterTypeVar] = None,
+            style: tp.Optional[CTRangeOutputStyleTypeVar] = None,
             full_comparison_key: tp.Optional[str] = None,
             summary_key: tp.Optional[str] = None,
     ):
@@ -306,6 +318,11 @@ class TimeseriesRefComparisonAndTargetOutput(
         """
         self.criteria: TimeseriesRefCriterionTypeVar = criteria
         self.writer = writer if writer is not None else NoWriter()
+        super().__init__(
+            criteria=criteria,
+            writer=writer if writer is not None else NoWriter(),
+            style=style,
+        )
         if target_range_type is None:
             if hasattr(self, 'target_range_default_type'):
                 target_range_type = self.target_range_default_type
@@ -441,6 +458,7 @@ class TimeseriesRefComparisonAndTargetOutput(
             return summary_output_type(
                 criteria=target_range,
                 writer=NoWriter(),
+                style=self.style,
             )
     ###END def TimeseriesComparisonOutput._prepare_summary_output
 
@@ -484,6 +502,33 @@ class TimeseriesRefComparisonAndTargetOutput(
             self.summary_key: summary_metrics,
         }
     ###END def TimeseriesComparisonOutput.prepare_output
+
+    def style_output(
+            self,
+            output: dict[str, pd.DataFrame]
+    ) -> dict[str, PandasStyler]:
+        if self.summary_output.style is None:
+            warnings.warn(
+                'No summary output style has been specified, `style_outpout` '
+                'will return a pandas `Styler` with no styles applied.'
+            )
+            return {_key: _df.style for _key, _df in output.items()}
+        if set(output.keys()) != {self.full_comparison_key, self.summary_key}:
+            raise ValueError(
+                f'`output` has keys {list(output.keys())}, expected '
+                f'{[self.full_comparison_key, self.summary_key]}'
+            )
+        summary_styler: PandasStyler = \
+            self.summary_output.style_output(output[self.summary_key])
+        full_comparison_styler: PandasStyler = \
+            self.summary_output.styling_funcs[CTCol.VALUE](
+                output[self.full_comparison_key].style
+            )
+        return {
+            self.summary_key: summary_styler,
+            self.full_comparison_key: full_comparison_styler,
+        }
+    ###END def TimeseriesComparisonOutput.style_output
 
 ###END class TimeseriesComparisonOutput
 

@@ -23,6 +23,7 @@ from ..targets.target_classes import CriterionTargetRange
 class IamCompactMultiTargetRangeOutput(
     MultiCriterionTargetRangeOutput[
         CriterionTargetRange,
+        CriterionTargetRangeOutput,
         MultiDataFrameExcelWriter | NoWriter
     ]
 ):
