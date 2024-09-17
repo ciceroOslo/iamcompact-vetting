@@ -510,7 +510,6 @@ class StyledResultOutput(
             criteria = self.criteria
         styled_output: StyledOutputTypeVar = self.prepare_styled_output(
             data,
-            criteria=criteria,
             prepare_output_kwargs=prepare_output_kwargs,
             style_output_kwargs=style_output_kwargs,
         )

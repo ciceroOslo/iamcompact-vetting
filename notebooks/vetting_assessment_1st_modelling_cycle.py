@@ -63,6 +63,7 @@ from iamcompact_vetting.targets.target_classes import(
 from iamcompact_vetting.output.base import (
     CriterionTargetRangeOutput,
     MultiCriterionTargetRangeOutput,
+    CriterionTargetRangeOutputStyles,
 )
 from iamcompact_vetting.output.timeseries import (
     TimeseriesRefFullComparisonOutput,
@@ -390,7 +391,8 @@ gdp_pop_harmonization_output: TimeseriesRefComparisonAndTargetOutput[
     TimeseriesRefFullComparisonOutput,
     CriterionTargetRangeOutput,
     MultiDataFrameExcelWriter,
-    None
+    None,
+    CriterionTargetRangeOutputStyles
 ] = TimeseriesRefComparisonAndTargetOutput(
     criteria=gdp_pop_harmonization_criterion,
     target_range=IamCompactHarmonizationTarget,
