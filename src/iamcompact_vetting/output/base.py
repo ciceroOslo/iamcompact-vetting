@@ -22,13 +22,32 @@ ResultsWriter
     `iamcompact_vetting.targets.CriterionTargetRange` subclasses).
 """
 from abc import ABC, abstractmethod
-from collections.abc import Sequence, Mapping
-import enum
+from collections.abc import (
+    Hashable,
+    Mapping,
+    Sequence,
+)
 import typing as tp
+import warnings
 
-import pyam
 import pandas as pd
+from pandas.io.formats.style import (
+    Styler as PandasStyler,
+)
+from pandas.io.formats.style_render import (
+    Subset as PandasSubset,
+)
+import pyam
 
+from .column_names import (
+    CTCol,
+    SummaryColumnSource,
+)
+from .styling.base import (
+    CriterionTargetRangeOutputStyles,
+    InRangeStyles,
+    PassFailStyles,
+)
 from ..targets.target_classes import CriterionTargetRange
 
 CritTypeVar = tp.TypeVar('CritTypeVar')
@@ -45,6 +64,10 @@ through its `write` method."""
 WriteReturnTypeVar = tp.TypeVar('WriteReturnTypeVar')
 """TypeVar for the datatype to be returned by the `write` method of a
 `ResultsWriter` subclass."""
+StyleTypeVar = tp.TypeVar('StylerTypeVar')
+"""TypeVar for styler classes, such as `pandas.io.formats.style.Styler`."""
+StyledOutputTypeVar = tp.TypeVar('StyledOutputTypeVar')
+"""TypeVar for output that has been styled."""
 
 
 class ResultsWriter(ABC, tp.Generic[OutputDataTypeVar, WriteReturnTypeVar]):
@@ -110,6 +133,19 @@ ResultsInputDataTypeVar = tp.TypeVar(
     'ResultsInputDataTypeVar',
     bound=ResultsInputData,
 )
+
+
+class StylingFunc(tp.Protocol):
+    """Protocol for methods in that style output DataFrames or Series"""
+    def __call__(
+        self,
+        styler: PandasStyler,
+        subset: tp.Optional[PandasSubset] = None,
+        *args,
+        **kwargs,
+    ) -> PandasStyler:
+        ...
+#END Protocol class StylingFunc
 
 
 class ResultOutput(
@@ -285,21 +321,219 @@ class ResultOutput(
 ###END abstract class ResultOutput
 
 
-class CTCol(enum.StrEnum):
-    """Column names for DataFrames received by `CriterionTargetRangeOutput`."""
-    INRANGE = 'in_range'
-    DISTANCE = 'distance'
-    VALUE = 'value'
-###END enum CTCol
+class StyledResultOutput(
+        ResultOutput[
+            CritTypeVar,
+            ResultsInputDataTypeVar,
+            OutputDataTypeVar,
+            WriterTypeVar,
+            WriteReturnTypeVar
+        ],
+        tp.Generic[
+            CritTypeVar,
+            ResultsInputDataTypeVar,
+            OutputDataTypeVar,
+            WriterTypeVar,
+            WriteReturnTypeVar,
+            StyleTypeVar,
+            StyledOutputTypeVar
+        ]
+):
+    """ResultsOutput class with styling support.
+
+    The class adds parameters for specifying whether styling should be used in
+    the `prepare_output` and `write_output` methods, and to set a styler object
+    as an instance attribute. Actual styling has to implemented by subclasses,
+    by specifying the class of styler objects, and by implementing the
+    `style_output` method.
+    """
+
+    def __init__(
+            self,
+            *,
+            criteria: CritTypeVar,
+            writer: WriterTypeVar,
+            style: StyleTypeVar,
+    ) -> None:
+        """
+        All the parameters are keyword-only, to allow for future changes in the
+        number of input parameters.
+
+        Parameters
+        ----------
+        criteria : CritTypeVar
+            The criteria that will be used to produce results that are to be
+            output by the `ResultOutput` instance.
+        writer : WriterTypeVar
+            The writer to be used to write the output.
+        styler : StylerTypeVar
+            The styler object to be used to style the output. The type of object
+            and its behavior must be determined by subclasses.
+        """
+        super().__init__(criteria=criteria, writer=writer)
+        self.style: StyleTypeVar = style
+    ###END def StyledResultOutput.__init__
+
+    @abstractmethod
+    def style_output(
+            self,
+            output: OutputDataTypeVar,
+    ) -> StyledOutputTypeVar:
+        """Style output prepared by `self.prepare_output`.
+
+        Abstract method, must be implemented by subclasses.
+        """
+        raise NotImplementedError
+    ###END abstractmethod def StyledResultOutput.style_output
+
+    def prepare_styled_output(
+            self,
+            data: ResultsInputDataTypeVar,
+            *,
+            prepare_output_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+            style_output_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+            **kwargs,
+    ) -> StyledOutputTypeVar:
+        """Prepare output and style it.
+
+        Calls `self.prepare_output` on the input data, and then
+        `self.style_output` on the output.
+
+        Parameters
+        ----------
+        data : ResultsInputDataTypeVar
+            The data to be used to prepare the output.
+        prepare_output_kwargs : dict, optional
+            Additional keyword arguments to be passed to `prepare_output`.
+        style_output_kwargs : dict, optional
+            Additional keyword arguments to be passed to `style_output`.
+        **kwargs
+            Additional keyword arguments are passed to both `prepare_output`
+            and `style_output`. They will be overridden by keywords that are
+            present in `prepare_output_kwargs` or `style_output_kwargs`.
+
+        Returns
+        -------
+        StyledOutputTypeVar
+            The styled output.
+        """
+        if prepare_output_kwargs is None:
+            prepare_output_kwargs = dict()
+        if style_output_kwargs is None:
+            style_output_kwargs = dict()
+        output: OutputDataTypeVar = self.prepare_output(
+            data,
+            **(kwargs | prepare_output_kwargs),
+        )
+        styled_output: StyledOutputTypeVar = self.style_output(
+            output,
+            **(kwargs | style_output_kwargs),
+        )
+        return styled_output
+    ###END def StyledResultOutput.prepare_styled_output
+
+    def write_output(
+            self,
+            output: OutputDataTypeVar|StyledOutputTypeVar,
+            /,
+            writer: tp.Optional[WriterTypeVar] = None,
+            **kwargs,
+    ) -> WriteReturnTypeVar:
+        """Write output data to the format written by `writer`.
+
+        This method is used for result outputs that have already been prepared
+        into the proper format, and possibly styled, usually by
+        `self.prepare_output` or `self.prepare_styled_output`. To write outputs
+        directly based on input data, use `self.write_results`.
+
+        The parameter `output` is assumed to be either unstyled or styled
+        output, but `writer` must support whichever type is used.
+
+        Parameters
+        ----------
+        output : OutputDataTypeVar or StyledOutputTypeVar
+            The data to be written, prepared into the proper output data
+            structure, usually through `self.prepare_output` or
+            `self.prepare_styled_output`.
+        writer : tp.Optional[WriterTypeVar]
+            The writer to be used to write the output. If `None`, the
+            `self.writer` attribute is used.
+        **kwargs
+            Additional keyword arguments to be passed to `writer.write`.
+
+        Returns
+        -------
+        WriteReturnTypeVar
+            The return value of `writer.write`.
+        """
+        if writer is None:
+            writer = self.writer
+        return writer.write(output, **kwargs)
+    ###END def StyledResultOutput.write_output
+
+    def write_results(
+            self,
+            data: ResultsInputDataTypeVar,
+            /,
+            criteria: tp.Optional[CritTypeVar] = None,
+            *,
+            writer: tp.Optional[WriterTypeVar] = None,
+            style_output: tp.Optional[bool] = None,
+            prepare_output_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+            style_output_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+            write_output_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+    ) -> tuple[OutputDataTypeVar|StyledOutputTypeVar, WriteReturnTypeVar]:
+        """See the documentation for `ResultsOutput.write_results`.
+
+        Output is styled before writing if `style_output` is `True`. The
+        parameters of `style_output_kwargs` are passed as keyword arguments
+        to `self.style_output`. Apart from this, the behavior and parameters
+        are the same as for `ResultsOutput.write_results`.
+        """
+        if style_output is None:
+            style_output = True
+        if not style_output:
+            return super().write_results(
+                data,
+                criteria=criteria,
+                writer=writer,
+                prepare_output_kwargs=prepare_output_kwargs,
+                write_output_kwargs=write_output_kwargs,
+            )
+        if prepare_output_kwargs is None:
+            prepare_output_kwargs = dict()
+        if style_output_kwargs is None:
+            style_output_kwargs = dict()
+        if write_output_kwargs is None:
+            write_output_kwargs = dict()
+        if criteria is None:
+            criteria = self.criteria
+        styled_output: StyledOutputTypeVar = self.prepare_styled_output(
+            data,
+            prepare_output_kwargs=prepare_output_kwargs,
+            style_output_kwargs=style_output_kwargs,
+        )
+        write_returnval: WriteReturnTypeVar = self.write_output(
+            styled_output,
+            writer=writer,
+            **write_output_kwargs,
+        )
+        return (styled_output, write_returnval)
+    ###END def StyledResultOutput.write_results
+
+###END class StyledResultOutput
+
 
 
 class CriterionTargetRangeOutput(
-        ResultOutput[
+        StyledResultOutput[
             CriterionTargetRangeTypeVar,
             pyam.IamDataFrame,
             pd.DataFrame,
             WriterTypeVar,
             WriteReturnTypeVar,
+            CriterionTargetRangeOutputStyles,
+            PandasStyler
         ],
 ):
     """TODO: NEED TO ADD PROPER DOCSTRING"""
@@ -314,9 +548,15 @@ class CriterionTargetRangeOutput(
             writer: WriterTypeVar,
             columns: tp.Optional[Sequence[CTCol]] = None,
             column_titles: tp.Optional[Mapping[CTCol, str]] = None,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
-        super().__init__(criteria=criteria, writer=writer)
+        super().__init__(
+            criteria=criteria,
+            writer=writer,
+            style=style if style is not None \
+                else CriterionTargetRangeOutputStyles(),
+        )
         if columns is not None:
             self._default_columns = list(columns)
         elif not hasattr(self, '_default_columns'):
@@ -333,6 +573,12 @@ class CriterionTargetRangeOutput(
                 CTCol.DISTANCE: 'Rel. distance from target',
                 CTCol.VALUE: 'Value',
             }
+        self.styling_funcs: tp.Final[dict[CTCol, StylingFunc]] = {
+            CTCol.INRANGE: self.style_in_range_columns,
+            CTCol.VALUE: self.style_value_columns,
+            CTCol.DISTANCE: self.style_distance_columns,
+        }
+
     ###END def CriterionTargetRangeOutput.__init__
 
     def prepare_output(
@@ -373,6 +619,182 @@ class CriterionTargetRangeOutput(
         return results_df
     ###END def CriterionTargetRangeOutput.prepare_output
 
+    def style_output(
+            self,
+            output: pd.DataFrame,
+            *,
+            column_titles: tp.Optional[Mapping[CTCol, str]] = None,
+    ) -> PandasStyler:
+        """Apply styles to the output.
+
+        The styles to apply to the different columns are taken from
+        `self.style`. To use a different style than the one that was specified
+        during intialization, set the `self.style` attribute.
+
+        Parameters
+        ----------
+        output : pd.DataFrame
+            The output to be styled.
+        column_titles : Mapping[CTCol, str], optional
+            A mapping from `CTCol` to the name of the columns in `output`. This
+            parameter is used to decide what styles to apply to which columns.
+            Optional, by default uses `self._default_column_titles`.
+        """
+        if column_titles is None:
+            column_titles = self._default_column_titles
+        if not set(output.columns).issubset(set(column_titles.values())):
+            raise ValueError(
+                'The following columns are not found in `column_titles`, and '
+                'cannot be styled: '
+                f'{set(output.columns) - set(column_titles.values())}'
+            )
+        return_style: PandasStyler = output.style
+        for _col in column_titles:
+            return_style = self.styling_funcs[_col](
+                return_style,
+                subset=[column_titles[_col]],
+            )
+        return return_style
+    ###END def CriterionTargetRangeOutput.style_output
+
+    def style_in_range_columns(
+            self,
+            styler: PandasStyler,
+            subset: tp.Optional[PandasSubset] = None,
+            *,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
+    ) -> PandasStyler:
+        """Style columns that contain a True/False value for in-range status.
+
+        Parameters
+        ----------
+        styler : pandas Styler
+            The pandas Styler to be styled.
+        subset : str, array-like, or pandas.IndexSlice
+            Indexer for the subset of the Styler's DataFrame to which the
+            styling is applied. See, e.g., `Styler.format` in the pandas
+            documentation for more details. To style one or more columns, you
+            can pass a list of strings.
+        style : CriterionTargetRangeOutputStyles, optional
+            The object with styling information to apply.
+
+        Returns
+        -------
+        styler : pandas Styler
+            `styler` with styling applied
+        """
+        if style is None:
+            style = self.style
+        subset_styles: PassFailStyles = style.in_range
+        styler = styler.format(
+            subset=subset,
+            **(subset_styles.FORMAT)
+        )
+        styler = styler.map(
+            func=lambda x: subset_styles.NA if pd.isna(x) \
+                else subset_styles.PASS if x \
+                else subset_styles.FAIL,
+            subset=subset,
+        )
+        return styler
+    ###END def CriterionTargetRangeOutput.style_in_range_columns
+
+    def style_value_columns(
+            self,
+            styler: PandasStyler,
+            subset: tp.Optional[PandasSubset] = None,
+            *,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
+    ) -> PandasStyler:
+        """Style columns with numeric values comparable to a target range.
+
+        Parameters
+        ----------
+        styler : pandas Styler
+            The pandas Styler to be styled.
+        subset : str, array-like, or pandas.IndexSlice
+            Indexer for the subset of the Styler's DataFrame to which the
+            styling is applied. See, e.g., `Styler.format` in the pandas
+            documentation for more details. To style one or more columns, you
+            can pass a list of strings.
+        style : CriterionTargetRangeOutputStyles, optional
+            The object with styling information to apply.
+
+        Returns
+        -------
+        styler : pandas Styler
+            `styler` with styling applied
+        """
+        if style is None:
+            style = self.style
+        criterion: CriterionTargetRange = self.criteria
+        subset_styles: InRangeStyles = style.value
+        styler = styler.format(
+            subset=subset,
+            **(subset_styles.FORMAT)
+        )
+        if criterion.range is None:
+            warnings.warn(
+                f'The criterion with name "{criterion.name}" does not have a '
+                '`range`. Value columns will not be styled.'
+            )
+            return styler
+        styler = styler.map(
+            func=lambda x: subset_styles.NA if pd.isna(x) \
+                else subset_styles.IN_RANGE \
+                    if criterion.is_in_range(x) == True \
+                else subset_styles.BELOW_RANGE \
+                    if criterion.is_below_range(x) == True \
+                else subset_styles.ABOVE_RANGE \
+                    if criterion.is_above_range(x) == True \
+                else None,
+            subset=subset,
+        )
+        return styler
+    ###END def CriterionTargetRangeOutput.style_value_columns
+
+    def style_distance_columns(
+            self,
+            styler: PandasStyler,
+            subset: tp.Optional[PandasSubset] = None,
+            *,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
+    ) -> PandasStyler:
+        """Style columns with distance values compared to a target range.
+
+        Parameters
+        ----------
+        styler : pandas Styler
+            The pandas Styler to be styled.
+        subset : str, array-like, or pandas.IndexSlice
+            Indexer for the subset of the Styler's DataFrame to which the
+            styling is applied. See, e.g., `Styler.format` in the pandas
+            documentation for more details. To style one or more columns, you
+            can pass a list of strings.
+        style : CriterionTargetRangeOutputStyles, optional
+            The object with styling information to apply.
+
+        Returns
+        -------
+        styler : pandas Styler
+            `styler` with styling applied
+        """
+        if style is None:
+            style = self.style
+        criterion: CriterionTargetRange = self.criteria
+        subset_styles: InRangeStyles = style.distance
+        styler = styler.format(
+            subset=subset,
+            **(subset_styles.FORMAT)
+        )
+        warnings.warn(
+            'Styling for distance columns is not yet implemented for this '
+            f'class ({self.__class__.__name__}). Styles other than number '
+            'formats will not be applied.'
+        )
+        return styler
+    ###END def CriterionTargetRangeOutput.style_distance_columns
+
     # def get_target_range_values(
     #         self,
     #         index: pd.MultiIndex,
@@ -392,32 +814,45 @@ DataFrameMappingWriterTypeVar = tp.TypeVar(
     bound=ResultsWriter[Mapping[str, pd.DataFrame], tp.Any],
 )
 
+CriterionTargetRangeOutputTypeVar = tp.TypeVar(
+    'CriterionTargetRangeOutputTypeVar',
+    bound=CriterionTargetRangeOutput
+)
 
-class SummaryColumnSource(enum.Enum):
-    """Specifies where to get the column names of summary DataFrames from."""
-    DICT_KEYS = enum.auto()
-    CRITERIA_NAMES = enum.auto()
-###END enum class SummaryColumnSource
 
 class MultiCriterionTargetRangeOutput(
-        ResultOutput[
+        StyledResultOutput[
             Mapping[str, CriterionTargetRangeTypeVar],
             pyam.IamDataFrame,
-            Mapping[str, pd.DataFrame],
+            dict[str, pd.DataFrame],
             DataFrameMappingWriterTypeVar,
             tp.Any,
+            Mapping[str, CriterionTargetRangeOutputStyles|None],
+            dict[str, PandasStyler]
         ],
+        tp.Generic[
+            CriterionTargetRangeTypeVar,
+            CriterionTargetRangeOutputTypeVar,
+            DataFrameMappingWriterTypeVar
+        ]
 ):
     """Class to make output for multiple CriterionTargetRange instances.
 
     The class takes a dictionary of `CriterionTargetRangeOutput` instances with
     str names as keys, and returns a dictionary of DataFrames, each produced
     using a `CriterionTargetRange` instance to produce the given DataFrame.
+
+    The dictionary of `CriterionTargetRangeOutput` instances can be subclasses
+    of `CriterionTargetRangeOutput`. If so, you should pass the subclass type
+    to the `criteria_class` keyword argument of the `__init__` method. The
+    implementation of this class assumes that all the
     """
 
     _default_columns: list[CTCol]
     _default_column_titles: dict[CTCol, str]
+    _default_include_summary: bool
     _default_summary_keys: dict[CTCol, str]
+    _default_summary_column_name_source: SummaryColumnSource
 
     class InitKwargsType(tp.TypedDict, total=False):
         columns: tp.Optional[tp.Sequence[CTCol]]
@@ -436,10 +871,28 @@ class MultiCriterionTargetRangeOutput(
             writer: DataFrameMappingWriterTypeVar,
             columns: tp.Optional[tp.Sequence[CTCol]] = None,
             column_titles: tp.Optional[tp.Mapping[CTCol, str]] = None,
+            include_summary: tp.Optional[bool] = None,
             summary_keys: tp.Optional[tp.Mapping[CTCol, str]] = None,
+            criteria_output_class: tp.Type[CriterionTargetRangeOutputTypeVar] \
+                = CriterionTargetRangeOutput,
+            summary_column_name_source: tp.Optional[SummaryColumnSource] = None,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] \
+                | Mapping[str, tp.Optional[CriterionTargetRangeOutputStyles]] \
+                    = None
     ):
         """TODO: NEED TO ADD PROPER DOCSTRING"""
-        super().__init__(criteria=criteria, writer=writer)
+        self.criteria_output_class: \
+            tp.Final[tp.Type[CriterionTargetRangeOutputTypeVar]] \
+                = criteria_output_class
+        if isinstance(style, CriterionTargetRangeOutputStyles) or style is None:
+            style = {_key: style for _key in criteria.keys()}
+        if not isinstance(style, Mapping):
+            raise TypeError(
+                '`style` must be an instance of '
+                '`CriterionTargetRangeOutputStyles`, None, or a Mapping from '
+                'string criteria keys to CriterionTargetRangeOutputStyles.'
+            )
+        super().__init__(criteria=criteria, writer=writer, style=style)
         if columns is not None:
             self._default_columns = list(columns)
         elif not hasattr(self, '_default_columns'):
@@ -456,10 +909,21 @@ class MultiCriterionTargetRangeOutput(
                 CTCol.DISTANCE: 'Rel. distance from target',
                 CTCol.VALUE: 'Value',
             }
+        if include_summary is not None:
+            self._default_include_summary = include_summary
+        else:
+            self._default_include_summary = True if summary_keys is not None \
+                else False
         if summary_keys is not None:
             self._default_summary_keys = dict(**summary_keys)
         elif not hasattr(self, '_default_summary_keys'):
             self._default_summary_keys = self._default_column_titles.copy()
+        if summary_column_name_source is not None:
+            self._default_summary_column_name_source = \
+                summary_column_name_source
+        elif not hasattr(self, '_default_summary_column_name_source'):
+            self._default_summary_column_name_source = \
+                SummaryColumnSource.CRITERIA_NAMES
     ###END def MultiCriterionTargetRangeOutput.__init__
 
 
@@ -545,7 +1009,7 @@ class MultiCriterionTargetRangeOutput(
         `add_summary_output` is `True`, otherwise they are ignored.
         """
         if add_summary_output is None:
-            add_summary_output = False
+            add_summary_output = self._default_include_summary
         if criteria is None:
             criteria = self.criteria
         if columns is None:
@@ -567,7 +1031,7 @@ class MultiCriterionTargetRangeOutput(
                     )
                 columns_in_summary = columns
         output_dict: dict[str, pd.DataFrame] = {
-            _name: CriterionTargetRangeOutput(
+            _name: self.criteria_output_class(
                 criteria=_criterion,
                 writer=self.writer,
                 columns=columns[_name] if isinstance(columns, Mapping) \
@@ -651,7 +1115,7 @@ class MultiCriterionTargetRangeOutput(
             also need to pass a value for `drop_levels`, to ensure that the
             specified index level is not dropped, since dropping levels takes
             place before obtaining column names. If `column_name_source` is a
-            `SummaryColumnSource` enum, the following will be used: 
+            `SummaryColumnSource` enum, the following will be used:
               * `SummaryColumnSource.DICT_KEYS`: The column names will be
                 taken from the dictionary keys of `criteria`.
               * `SummaryColumnSource.CRITERIA_NAMES`: The column names will be
@@ -682,7 +1146,7 @@ class MultiCriterionTargetRangeOutput(
         if summary_keys is None:
             summary_keys = self._default_summary_keys
         if column_name_source is None:
-            column_name_source = SummaryColumnSource.CRITERIA_NAMES
+            column_name_source = self._default_summary_column_name_source
         if drop_levels is None:
             drop_levels = ('variable',) + tuple(
                 _crit.rename_variable_column for _crit in criteria.values()
@@ -770,4 +1234,129 @@ class MultiCriterionTargetRangeOutput(
             )) for _column in columns
         }
         return return_dict
+
+    ###END def MultiCriterionTargetRangeOutput.prepare_summary_output
+
+    def style_output(
+            self,
+            output: dict[str, pd.DataFrame],
+            criteria: tp.Optional[Mapping[str, CriterionTargetRangeTypeVar]] \
+                = None,
+            column_titles: tp.Optional[Mapping[str, Mapping[CTCol, str]]] \
+                = None,
+            include_summary: tp.Optional[bool] = None,
+            summary_keys: tp.Optional[Mapping[CTCol, str]] = None,
+            summary_column_name_source: tp.Optional[SummaryColumnSource] = None,
+    ) -> dict[str, PandasStyler]:
+        """Style the output from `prepare_output`.
+
+        Parameters
+        ----------
+        output : dict[str, pandas.DataFrame]
+            The output from `prepare_output`.
+        criteria : Mapping[str, CriterionTargetRangeTypeVar], optional
+            A mapping from  the keys of `output` to `CriterionTargetRange`
+            instances. Optional, defaults to `self.criteria`. Must be the same
+            criteria instances that were used to prepare the output.
+        column_titles : Mapping[str, Mapping[CTCol, str]], optional
+            A mapping from the keys of `output` to a mapping from column IDs
+            (`CTCol` enums) to the column titles used in the output. Optional,
+            defaults to `self._default_column_titles`. Must be the same as the
+            column titles used to prepare the output.
+        include_summary : bool, optional
+            Set to True if `output` includes summary output items, and they
+            should be styled with the same styles as the corresponding columns
+            in the single-criterion items.
+        summary_keys : Mapping[CTCol, str], optional
+            A mapping from the column IDs (`CTCol` enums) to the keys of
+            `output` that contain the summary columns. Optional, defaults to
+            `self._default_summary_keys`. Must be the same as the summary keys
+            used to prepare the output.
+        summary_column_name_source : SummaryColumnSource, optional
+            Specifies where to get the column names of summary DataFrames from.
+            Optional, defaults to `self._default_summary_column_name_source`.
+            Must be the same as the column name source used to prepare the
+            output.
+        """
+        if criteria is None:
+            criteria = self.criteria
+        column_titles = self._get_column_titles(
+            column_titles=column_titles,
+            criteria=criteria,
+        )
+        reverse_column_titles: dict[str, dict[str, CTCol]] = {
+            _key: {v: k for k, v in _ct.items()}
+            for _key, _ct in column_titles.items()
+        }
+        if include_summary is None:
+            include_summary = self._default_include_summary
+        if summary_keys is None:
+            summary_keys = self._default_summary_keys
+        if summary_column_name_source is None:
+            summary_column_name_source = self._default_summary_column_name_source
+        criteria_output: dict[str, CriterionTargetRangeOutputTypeVar] = {
+            _key: self.criteria_output_class(
+                criteria=_criterion,
+                writer=self.writer,
+                columns=[
+                    reverse_column_titles[_key][_col]
+                    for _col in output[_key].columns
+                ],
+                column_titles=column_titles[_key],
+                style=self.style[_key],
+            ) for _key, _criterion in criteria.items()
+        }
+        return_dict: dict[str, PandasStyler] = {
+            _key: _crit_output.style_output(output[_key])
+            for _key, _crit_output in criteria_output.items()
+        }
+        if include_summary is True:
+            col_crit_output_dict: dict[str, CriterionTargetRangeOutputTypeVar]
+            if summary_column_name_source == SummaryColumnSource.DICT_KEYS:
+                col_crit_output_dict = {
+                    _key: _crit_output
+                    for _key, _crit_output in criteria_output.items()
+                }
+            elif summary_column_name_source == SummaryColumnSource.CRITERIA_NAMES:
+                col_crit_output_dict = {
+                    _crit_output.criteria.name: _crit_output
+                    for _key, _crit_output in criteria_output.items()
+                }
+            elif isinstance(summary_column_name_source, str):
+                raise ValueError(
+                    'Styling summary output is not supported when '
+                    '`summary_column_name_source` is a string (i.e., and index '
+                    'level name).'
+                )
+            else:
+                raise TypeError(
+                    f'`summary_column_name_source` must be a '
+                    f'`SummaryColumnSource` enum, not '
+                    f'{type(summary_column_name_source)}.'
+                )
+            summary_return_dict: dict[str, PandasStyler] = dict()
+            for _ctcol, _output_key in summary_keys.items():
+                _output_df: pd.DataFrame = output[_output_key]
+                _output_df_style: PandasStyler = _output_df.style
+                for _col in _output_df.columns:
+                    _output_df_style = \
+                        col_crit_output_dict[_col].styling_funcs[_ctcol](
+                            _output_df_style, subset=[_col]
+                        )
+                summary_return_dict[_output_key] = _output_df_style
+            return_dict = return_dict | summary_return_dict
+        not_included_items: dict[str, PandasStyler] = {
+            _key: _df.style for _key, _df in output.items()
+            if _key not in return_dict
+        }
+        if len(not_included_items) > 0:
+            warnings.warn(
+                'The items in the `output` parameter with the following keys '
+                'were not styled, either because no criterion with the '
+                'corresponding key was found in the `criteria` parameter, or '
+                'because they were not detected as being summary items to be '
+                f'styled: {list(not_included_items.keys())}.'
+            )
+        return return_dict | not_included_items
+
 ###END class MultiCriterionTargetRangeOutput

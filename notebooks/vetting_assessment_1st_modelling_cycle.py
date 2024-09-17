@@ -48,6 +48,7 @@ from collections.abc import Mapping
 
 import pyam
 import pandas as pd
+from pandas.io.formats.style import Styler as PandasStyler
 
 from iamcompact_vetting.output.iamcompact_outputs import \
     ar6_vetting_target_range_output
@@ -62,6 +63,7 @@ from iamcompact_vetting.targets.target_classes import(
 from iamcompact_vetting.output.base import (
     CriterionTargetRangeOutput,
     MultiCriterionTargetRangeOutput,
+    CriterionTargetRangeOutputStyles,
 )
 from iamcompact_vetting.output.timeseries import (
     TimeseriesRefFullComparisonOutput,
@@ -280,6 +282,7 @@ results_excel_writer: pd.ExcelWriter = \
 # substituted to make sure that they are valid names for Excel worksheets.
 # %%
 vetting_results_output = ar6_vetting_target_range_output
+ar6_vetting_target_range_output._default_include_summary = True
 vetting_results_output.writer = MultiDataFrameExcelWriter(
     results_excel_writer,
     force_valid_sheet_name=True,
@@ -298,11 +301,15 @@ vetting_results_output.writer = MultiDataFrameExcelWriter(
 # `results_excel_writer.close()` must be called at the end to close and save the
 # Excel file.
 # %%
-vetting_results: Mapping[str, pd.DataFrame]
+vetting_results: dict[str, pd.DataFrame] | dict[str, PandasStyler]
 vetting_results, _ = vetting_results_output.write_results(
     iam_df,
     prepare_output_kwargs=dict(add_summary_output=True),
 )
+# vetting_results_styled = vetting_results_output.style_output(
+#     vetting_results,
+#     include_summary=True,
+# )
 results_excel_writer.close()
 
 # %% [markdown]
@@ -384,7 +391,8 @@ gdp_pop_harmonization_output: TimeseriesRefComparisonAndTargetOutput[
     TimeseriesRefFullComparisonOutput,
     CriterionTargetRangeOutput,
     MultiDataFrameExcelWriter,
-    None
+    None,
+    CriterionTargetRangeOutputStyles
 ] = TimeseriesRefComparisonAndTargetOutput(
     criteria=gdp_pop_harmonization_criterion,
     target_range=IamCompactHarmonizationTarget,
