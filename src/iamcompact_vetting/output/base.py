@@ -612,7 +612,7 @@ class MultiCriterionTargetRangeOutput(
         ResultOutput[
             Mapping[str, CriterionTargetRangeTypeVar],
             pyam.IamDataFrame,
-            Mapping[str, pd.DataFrame],
+            dict[str, pd.DataFrame],
             DataFrameMappingWriterTypeVar,
             tp.Any,
         ],
@@ -1056,7 +1056,7 @@ class MultiCriterionTargetRangeOutput(
             _key: {v: k for k, v in _ct.items()}
             for _key, _ct in column_titles.items()
         }
-        if include_summary is False:
+        if include_summary is None:
             include_summary = False
         if summary_keys is None:
             summary_keys = self._default_summary_keys
@@ -1110,7 +1110,7 @@ class MultiCriterionTargetRangeOutput(
                         col_crit_output_dict[_col].styling_funcs[_ctcol](
                             _output_df_style, subset=[_col]
                         )
-                summary_return_dict[_ctcol] = _output_df_style
+                summary_return_dict[_output_key] = _output_df_style
             return_dict = return_dict | summary_return_dict
         not_included_items: dict[str, PandasStyler] = {
             _key: _df.style for _key, _df in output.items()

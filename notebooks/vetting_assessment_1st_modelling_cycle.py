@@ -298,10 +298,14 @@ vetting_results_output.writer = MultiDataFrameExcelWriter(
 # `results_excel_writer.close()` must be called at the end to close and save the
 # Excel file.
 # %%
-vetting_results: Mapping[str, pd.DataFrame]
+vetting_results: dict[str, pd.DataFrame]
 vetting_results, _ = vetting_results_output.write_results(
     iam_df,
     prepare_output_kwargs=dict(add_summary_output=True),
+)
+vetting_results_styled = vetting_results_output.style_output(
+    vetting_results,
+    include_summary=True,
 )
 results_excel_writer.close()
 
