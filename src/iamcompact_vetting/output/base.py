@@ -131,6 +131,19 @@ ResultsInputDataTypeVar = tp.TypeVar(
 )
 
 
+class StylingFunc(tp.Protocol):
+    """Protocol for methods in that style output DataFrames or Series"""
+    def __call__(
+        self,
+        styler: PandasStyler,
+        subset: tp.Optional[PandasSubset] = None,
+        *args,
+        **kwargs,
+    ) -> PandasStyler:
+        ...
+#END Protocol class StylingFunc
+
+
 class ResultOutput(
         ABC,
         tp.Generic[
@@ -348,6 +361,12 @@ class CriterionTargetRangeOutput(
         self.style: CriterionTargetRangeOutputStyles = \
             style if style is not None \
                 else CriterionTargetRangeOutputStyles()
+        self.styling_funcs: tp.Final[dict[CTCol, StylingFunc]] = {
+            CTCol.INRANGE: self.style_in_range_columns,
+            CTCol.VALUE: self.style_value_columns,
+            CTCol.DISTANCE: self.style_distance_columns,
+        }
+
     ###END def CriterionTargetRangeOutput.__init__
 
     def prepare_output(
@@ -418,18 +437,11 @@ class CriterionTargetRangeOutput(
                 f'{set(output.columns) - set(column_titles.values())}'
             )
         return_style: PandasStyler = output.style
-        return_style = self.style_in_range_columns(
-            return_style,
-            subset=[column_titles[CTCol.INRANGE]],
-        )
-        return_style = self.style_value_columns(
-            return_style,
-            subset=[column_titles[CTCol.VALUE]],
-        )
-        return_style = self.style_distance_columns(
-            return_style,
-            subset=[column_titles[CTCol.DISTANCE]],
-        )
+        for _col in column_titles:
+            return_style = self.styling_funcs[_col](
+                return_style,
+                subset=[column_titles[_col]],
+            )
         return return_style
     ###END def CriterionTargetRangeOutput.style_output
 
@@ -437,6 +449,7 @@ class CriterionTargetRangeOutput(
             self,
             styler: PandasStyler,
             subset: tp.Optional[PandasSubset] = None,
+            *,
             style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
     ) -> PandasStyler:
         """Style columns that contain a True/False value for in-range status.
@@ -478,6 +491,7 @@ class CriterionTargetRangeOutput(
             self,
             styler: PandasStyler,
             subset: tp.Optional[PandasSubset] = None,
+            *,
             style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
     ) -> PandasStyler:
         """Style columns with numeric values comparable to a target range.
@@ -531,6 +545,7 @@ class CriterionTargetRangeOutput(
             self,
             styler: PandasStyler,
             subset: tp.Optional[PandasSubset] = None,
+            *,
             style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
     ) -> PandasStyler:
         """Style columns with distance values compared to a target range.
@@ -567,7 +582,6 @@ class CriterionTargetRangeOutput(
         )
         return styler
     ###END def CriterionTargetRangeOutput.style_distance_columns
-
 
     # def get_target_range_values(
     #         self,
@@ -617,7 +631,7 @@ class MultiCriterionTargetRangeOutput(
     The dictionary of `CriterionTargetRangeOutput` instances can be subclasses
     of `CriterionTargetRangeOutput`. If so, you should pass the subclass type
     to the `criteria_class` keyword argument of the `__init__` method. The
-    implementation of this class assumes that all the 
+    implementation of this class assumes that all the
     """
 
     _default_columns: list[CTCol]
@@ -869,7 +883,7 @@ class MultiCriterionTargetRangeOutput(
             also need to pass a value for `drop_levels`, to ensure that the
             specified index level is not dropped, since dropping levels takes
             place before obtaining column names. If `column_name_source` is a
-            `SummaryColumnSource` enum, the following will be used: 
+            `SummaryColumnSource` enum, the following will be used:
               * `SummaryColumnSource.DICT_KEYS`: The column names will be
                 taken from the dictionary keys of `criteria`.
               * `SummaryColumnSource.CRITERIA_NAMES`: The column names will be
@@ -1018,8 +1032,9 @@ class MultiCriterionTargetRangeOutput(
             defaults to `self._default_column_titles`. Must be the same as the
             column titles used to prepare the output.
         include_summary : bool, optional
-            Whether to include the summary columns in the output. Optional,
-            defaults to False.
+            Set to True if `output` includes summary output items, and they
+            should be styled with the same styles as the corresponding columns
+            in the single-criterion items.
         summary_keys : Mapping[CTCol, str], optional
             A mapping from the column IDs (`CTCol` enums) to the keys of
             `output` that contain the summary columns. Optional, defaults to
@@ -1058,5 +1073,57 @@ class MultiCriterionTargetRangeOutput(
                 column_titles=column_titles[_key],
             ) for _key, _criterion in criteria.items()
         }
+        return_dict: dict[str, PandasStyler] = {
+            _key: _crit_output.style_output(output[_key])
+            for _key, _crit_output in criteria_output.items()
+        }
+        if include_summary is True:
+            col_crit_output_dict: dict[str, CriterionTargetRangeOutputTypeVar]
+            if summary_column_name_source == SummaryColumnSource.DICT_KEYS:
+                col_crit_output_dict = {
+                    _key: _crit_output
+                    for _key, _crit_output in criteria_output.items()
+                }
+            elif summary_column_name_source == SummaryColumnSource.CRITERIA_NAMES:
+                col_crit_output_dict = {
+                    _crit_output.criteria.name: _crit_output
+                    for _key, _crit_output in criteria_output.items()
+                }
+            elif isinstance(summary_column_name_source, str):
+                raise ValueError(
+                    'Styling summary output is not supported when '
+                    '`summary_column_name_source` is a string (i.e., and index '
+                    'level name).'
+                )
+            else:
+                raise TypeError(
+                    f'`summary_column_name_source` must be a '
+                    f'`SummaryColumnSource` enum, not '
+                    f'{type(summary_column_name_source)}.'
+                )
+            summary_return_dict: dict[str, PandasStyler] = dict()
+            for _ctcol, _output_key in summary_keys.items():
+                _output_df: pd.DataFrame = output[_output_key]
+                _output_df_style: PandasStyler = _output_df.style
+                for _col in _output_df.columns:
+                    _output_df_style = \
+                        col_crit_output_dict[_col].styling_funcs[_ctcol](
+                            _output_df_style, subset=[_col]
+                        )
+                summary_return_dict[_ctcol] = _output_df_style
+            return_dict = return_dict | summary_return_dict
+        not_included_items: dict[str, PandasStyler] = {
+            _key: _df.style for _key, _df in output.items()
+            if _key not in return_dict
+        }
+        if len(not_included_items) > 0:
+            warnings.warn(
+                'The items in the `output` parameter with the following keys '
+                'were not styled, either because no criterion with the '
+                'corresponding key was found in the `criteria` parameter, or '
+                'because they were not detected as being summary items to be '
+                f'styled: {list(not_included_items.keys())}.'
+            )
+        return return_dict | not_included_items
 
 ###END class MultiCriterionTargetRangeOutput
