@@ -21,6 +21,7 @@ import dataclasses
 from collections.abc import Sequence, Mapping
 
 import pandas as pd
+from pandas.io.formats.style import Styler as PandasStyler
 import xlsxwriter
 from xlsxwriter import Workbook
 
@@ -189,10 +190,10 @@ class ExcelWriterBase(ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar]):
 ###END abstract class ExcelWriterBase
 
 
-class ToExcelKwargs(tp.TypedDict):
+class ToExcelKwargs(tp.TypedDict, total=False):
     """Keyword arguments for `pandas.DataFrame.to_excel`."""
     sheet_name: str
-    no_rep: str
+    na_rep: str
     float_format: str
     columns: Sequence[str]
     header: bool | list[str]
@@ -201,6 +202,8 @@ class ToExcelKwargs(tp.TypedDict):
     startrow: int
     startcol: int
     merge_cells: bool
+    inf_rep: str
+    freeze_panes: tuple[int, int]
     engine_kwargs: dict
 ###END TypedDict class ToExcelKwargs
 
@@ -338,11 +341,11 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
 
     def write(
             self,
-            data: pd.DataFrame,
+            data: pd.DataFrame|PandasStyler,
             /,
             *,
             sheet_name: tp.Optional[str] = None,
-            to_excel_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+            to_excel_kwargs: tp.Optional[ToExcelKwargs] = None,
     ) -> None:
         """Write the given `pandas.DataFrame` to the workbook.
         
@@ -375,6 +378,14 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
                 '`DataFrameExcelWriter` does not support specifying the '
                 '`engine` argument to `DataFrame.to_excel`. '
             )
+        if 'freeze_panes' not in to_excel_kwargs:
+            if isinstance(data, PandasStyler):
+                _header_rows: int = len(data.data.columns.names)
+                _index_cols: int = len(data.data.index.names)
+            else:
+                _header_rows: int = len(data.columns.names)
+                _index_cols: int = len(data.index.names)
+            to_excel_kwargs['freeze_panes'] = (_header_rows, _index_cols)
         data.to_excel(
             self.excel_writer,
             sheet_name=sheet_name,
@@ -438,7 +449,7 @@ class MultiDataFrameExcelWriter(
 
     def write(
             self,
-            data: Mapping[str, pd.DataFrame],
+            data: Mapping[str, pd.DataFrame|PandasStyler],
             /,
             *,
             style: tp.Optional[
