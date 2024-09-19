@@ -282,7 +282,7 @@ results_excel_writer: pd.ExcelWriter = \
 # substituted to make sure that they are valid names for Excel worksheets.
 # %%
 vetting_results_output = ar6_vetting_target_range_output
-ar6_vetting_target_range_output._default_include_summary = True
+vetting_results_output._default_include_summary = True
 vetting_results_output.writer = MultiDataFrameExcelWriter(
     results_excel_writer,
     force_valid_sheet_name=True,
