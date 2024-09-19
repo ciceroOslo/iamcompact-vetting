@@ -1339,6 +1339,12 @@ class MultiCriterionTargetRangeOutput(
             include_summary = self._default_include_summary
         if summary_keys is None:
             summary_keys = self._default_summary_keys
+        if include_summary and not \
+                set(summary_keys.values()).isdisjoint(set(criteria.keys())):
+            raise ValueError(
+                '`summary_keys` has values that overlap with the keys of '
+                '`criteria`. This should not be the case, please investigate.'
+            )
         if summary_column_name_source is None:
             summary_column_name_source = self._default_summary_column_name_source
         criteria_output: dict[str, CriterionTargetRangeOutputTypeVar] = {
@@ -1391,7 +1397,7 @@ class MultiCriterionTargetRangeOutput(
                             _output_df_style, subset=[_col]
                         )
                 summary_return_dict[_output_key] = _output_df_style
-            return_dict = return_dict | summary_return_dict
+            return_dict = summary_return_dict | return_dict
         not_included_items: dict[str, PandasStyler] = {
             _key: _df.style for _key, _df in output.items()
             if _key not in return_dict
