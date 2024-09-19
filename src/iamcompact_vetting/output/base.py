@@ -23,7 +23,7 @@ ResultsWriter
 """
 from abc import ABC, abstractmethod
 from collections.abc import (
-    Hashable,
+    Callable,
     Mapping,
     Sequence,
 )
@@ -696,6 +696,7 @@ class CriterionTargetRangeOutput(
                 f'{set(output.columns) - set(column_titles.values())}'
             )
         return_style: PandasStyler = output.style
+        self.apply_common_styling(return_style)
         for _col in column_titles:
             return_style = self.styling_funcs[_col](
                 return_style,
@@ -703,6 +704,56 @@ class CriterionTargetRangeOutput(
             )
         return return_style
     ###END def CriterionTargetRangeOutput.style_output
+
+    def apply_common_styling(
+            self,
+            styler: PandasStyler,
+            *,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
+    ) -> PandasStyler:
+        """Apply common (not column-specific) styling.
+
+        Applies common styles, such as common number formatting or styling of
+        indexes and column headers.
+
+        Parameters
+        ----------
+        styler : pandas Styler
+            The pandas Styler to be styled.
+        style : CriterionTargetRangeOutputStyles, optional
+            The object with styling information to apply.
+
+        Returns
+        -------
+        styler : pandas Styler
+            `styler` with styling applied
+        """
+        if style is None:
+            style = self.style
+        if style.common is not None:
+            styler = styler.format(**style.common.FORMAT)
+            if style.common.INDEX_FORMAT is not None:
+                styler = \
+                    styler.format_index(**style.common.INDEX_FORMAT, axis=0)
+            if style.common.COLUMN_FORMAT is not None:
+                styler = \
+                    styler.format_index(**style.common.COLUMN_FORMAT, axis=1)
+            if style.common.INDEX_STYLE is not None:
+                index_style: Callable[[tp.Any], str] | str = \
+                    style.common.INDEX_STYLE
+                if callable(index_style):
+                    styler = styler.map_index(index_style, axis=0)
+                else:
+                    styler = styler.map_index(lambda x: index_style, axis=0)
+            if style.common.COLUMN_STYLE is not None:
+                column_style: Callable[[tp.Any], str] | str = \
+                    style.common.COLUMN_STYLE
+                if callable(column_style):
+                    styler = styler.map_index(column_style, axis=1)
+                else:
+                    styler = styler.map_index(lambda x: column_style, axis=1)
+        return styler
+    ###END def CriterionTargetRangeOutput.apply_common_styling
 
     def style_in_range_columns(
             self,
@@ -931,8 +982,28 @@ class MultiCriterionTargetRangeOutput(
         self.criteria_output_class: \
             tp.Final[tp.Type[CriterionTargetRangeOutputTypeVar]] \
                 = criteria_output_class
+        if include_summary is not None:
+            self._default_include_summary = include_summary
+        else:
+            self._default_include_summary = True if summary_keys is not None \
+                else False
+        if summary_keys is not None:
+            self._default_summary_keys = dict(**summary_keys)
+        elif not hasattr(self, '_default_summary_keys'):
+            self._default_summary_keys = self._default_column_titles.copy()
         if isinstance(style, CriterionTargetRangeOutputStyles) or style is None:
-            style = {_key: style for _key in criteria.keys()}
+            _singlestyle: CriterionTargetRangeOutputStyles|None = style
+            if _singlestyle is None:
+                style = {
+                    _key: CriterionTargetRangeOutputStyles()
+                    for _key in self._default_summary_keys.values()
+                }
+            else:
+                style = {
+                    _key: _singlestyle
+                    for _key in self._default_summary_keys.values()
+                }
+            style |= {_key: _singlestyle for _key in criteria.keys()}
         if not isinstance(style, Mapping):
             raise TypeError(
                 '`style` must be an instance of '
@@ -956,15 +1027,6 @@ class MultiCriterionTargetRangeOutput(
                 CTCol.DISTANCE: 'Rel. distance from target',
                 CTCol.VALUE: 'Value',
             }
-        if include_summary is not None:
-            self._default_include_summary = include_summary
-        else:
-            self._default_include_summary = True if summary_keys is not None \
-                else False
-        if summary_keys is not None:
-            self._default_summary_keys = dict(**summary_keys)
-        elif not hasattr(self, '_default_summary_keys'):
-            self._default_summary_keys = self._default_column_titles.copy()
         if summary_column_name_source is not None:
             self._default_summary_column_name_source = \
                 summary_column_name_source
@@ -1396,6 +1458,10 @@ class MultiCriterionTargetRangeOutput(
                         col_crit_output_dict[_col].styling_funcs[_ctcol](
                             _output_df_style, subset=[_col]
                         )
+                _output_df_style = self.apply_common_styling(
+                    _output_df_style,
+                    style=self.style[_output_key],
+                )
                 summary_return_dict[_output_key] = _output_df_style
             return_dict = summary_return_dict | return_dict
         not_included_items: dict[str, PandasStyler] = {
@@ -1411,5 +1477,46 @@ class MultiCriterionTargetRangeOutput(
                 f'styled: {list(not_included_items.keys())}.'
             )
         return return_dict | not_included_items
+    ###END def MultiCriterionTargetRangeOutput.style_output
+
+    def apply_common_styling(
+            self,
+            styler: PandasStyler,
+            *,
+            style: tp.Optional[CriterionTargetRangeOutputStyles] = None,
+    ) -> PandasStyler:
+        """Apply common (not column-specific) styling.
+
+        Applies common styles, such as common number formatting or styling of
+        indexes and column headers.
+
+        Note that this method in the current implementation is applied to
+        individual DataFrames rather than the whole dictionary of output
+        DataFrames, and is only applied to summary DataFrames. If `style_output`
+        is called with `include_summary=False`, this method will not be called.'
+
+        Also, this method currently just calls
+        `CriterionTargetRangeOutput.apply_common_styling` on the summary
+        DataFrames as a shortcut.
+
+        Parameters
+        ----------
+        styler : pandas Styler
+            The pansas Styler to be styled.
+        style : CriterionTargetRangeOutputStyles, optional
+            The object with styling information to apply.
+
+        Returns
+        -------
+        styler : pandas Styler
+            `styler` with styling applied
+        """
+        styler = CriterionTargetRangeOutput.apply_common_styling(
+            self,
+            styler=styler,
+            style=style
+        )
+        return styler
+    ###END def MultiCriterionTargetRangeOutput.apply_common_styling
 
 ###END class MultiCriterionTargetRangeOutput
