@@ -27,6 +27,7 @@ from collections.abc import (
     Mapping,
     Sequence,
 )
+import copy
 import typing as tp
 import warnings
 
@@ -64,8 +65,8 @@ through its `write` method."""
 WriteReturnTypeVar = tp.TypeVar('WriteReturnTypeVar')
 """TypeVar for the datatype to be returned by the `write` method of a
 `ResultsWriter` subclass."""
-StyleTypeVar = tp.TypeVar('StylerTypeVar')
-"""TypeVar for styler classes, such as `pandas.io.formats.style.Styler`."""
+StyleTypeVar = tp.TypeVar('StyleTypeVar')
+"""TypeVar for style classes."""
 StyledOutputTypeVar = tp.TypeVar('StyledOutputTypeVar')
 """TypeVar for output that has been styled."""
 
@@ -119,7 +120,7 @@ class NoWriter(ResultsWriter[tp.Any, None]):
     ###END def NoWriter.write
 ###END class NoWriter
 
-WriterTypeVar = tp.TypeVar('WriterTypeVar', bound=ResultsWriter, covariant=True)
+WriterTypeVar = tp.TypeVar('WriterTypeVar', bound=ResultsWriter)
 """TypeVar for the type of `ResultsWriter` subclass to be used by a
 `ResultOutput` subclass instance."""
 
@@ -317,6 +318,52 @@ class ResultOutput(
             self.write_output(output, writer, **write_output_kwargs)
         return (output, write_returnval)
     ###END def ResultOutput.write_results
+
+    def set_writer(
+            self,
+            writer: WriterTypeVar
+    ) -> None:
+        """Set a new writer for the instance.
+
+        Parameters
+        ----------
+        writer : WriterTypeVar
+            The new writer to be used.
+
+        Returns
+        -------
+        None
+            No value is returned. If you want to set a writer as part of a
+            pipeline and return `self`, use `self.with_writer` instead, with
+            `inplace` set to `True`.
+        """
+        self.writer = writer
+    ###END def ResultOutput.set_writer
+
+    def with_writer(
+            self,
+            writer: WriterTypeVar,
+            inplace: bool = False,
+    ) -> tp.Self:
+        """Return a copy or the instance itself with a new writer object set.
+
+        Note that only a shallow copy is returned. The criteria objects and
+        other attributes still point to the same objects.
+
+        Parameters
+        ----------
+        writer : WriterTypeVar
+            The new writer to be used.
+
+        Returns
+        -------
+        A copy with a new writer set, or `self` with a new writer set if
+        `inplace` is `True`.
+        """
+        output_obj: tp.Self = self if inplace else copy.copy(self)
+        output_obj.set_writer(writer)
+        return output_obj
+    ###END def ResultOutput.with_writer
 
 ###END abstract class ResultOutput
 
