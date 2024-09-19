@@ -524,6 +524,9 @@ class TimeseriesRefComparisonAndTargetOutput(
             self.summary_output.styling_funcs[CTCol.VALUE](
                 output[self.full_comparison_key].style
             )
+        full_comparison_styler = self.summary_output.apply_common_styling(
+            full_comparison_styler,
+        )
         return {
             self.summary_key: summary_styler,
             self.full_comparison_key: full_comparison_styler,

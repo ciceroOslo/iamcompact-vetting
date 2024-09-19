@@ -21,6 +21,7 @@ import dataclasses
 from collections.abc import Sequence, Mapping
 
 import pandas as pd
+from pandas.io.formats.style import Styler as PandasStyler
 import xlsxwriter
 from xlsxwriter import Workbook
 
@@ -189,10 +190,10 @@ class ExcelWriterBase(ResultsWriter[OutputDataTypeVar, WriteReturnTypeVar]):
 ###END abstract class ExcelWriterBase
 
 
-class ToExcelKwargs(tp.TypedDict):
+class ToExcelKwargs(tp.TypedDict, total=False):
     """Keyword arguments for `pandas.DataFrame.to_excel`."""
     sheet_name: str
-    no_rep: str
+    na_rep: str
     float_format: str
     columns: Sequence[str]
     header: bool | list[str]
@@ -201,6 +202,8 @@ class ToExcelKwargs(tp.TypedDict):
     startrow: int
     startcol: int
     merge_cells: bool
+    inf_rep: str
+    freeze_panes: tuple[int, int]
     engine_kwargs: dict
 ###END TypedDict class ToExcelKwargs
 
@@ -338,11 +341,11 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
 
     def write(
             self,
-            data: pd.DataFrame,
+            data: pd.DataFrame|PandasStyler,
             /,
             *,
             sheet_name: tp.Optional[str] = None,
-            to_excel_kwargs: tp.Optional[dict[str, tp.Any]] = None,
+            to_excel_kwargs: tp.Optional[ToExcelKwargs] = None,
     ) -> None:
         """Write the given `pandas.DataFrame` to the workbook.
         
@@ -358,7 +361,17 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
             (apart from `sheet_name`). Optional, defaults to None
         """
         if to_excel_kwargs is None:
-            to_excel_kwargs = dict()
+            to_excel_kwargs = ToExcelKwargs()
+        else:
+            to_excel_kwargs = to_excel_kwargs.copy()
+        if sheet_name is not None:
+            if 'sheet_name' in to_excel_kwargs:
+                raise ValueError(
+                    f'`sheet_name` is specified twice: with values '
+                    f'`{sheet_name}` as a keyword argument, and with values '
+                    f'`{to_excel_kwargs["sheet_name"]}` in the '
+                    f'`to_excel_kwargs` parameter. Must only be specified once.'
+                )
         if sheet_name is None:
             if 'sheet_name' in to_excel_kwargs:
                 sheet_name = to_excel_kwargs.pop('sheet_name')
@@ -375,9 +388,17 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
                 '`DataFrameExcelWriter` does not support specifying the '
                 '`engine` argument to `DataFrame.to_excel`. '
             )
+        if 'freeze_panes' not in to_excel_kwargs:
+            if isinstance(data, PandasStyler):
+                _header_rows: int = len(data.data.columns.names)
+                _index_cols: int = len(data.data.index.names)
+            else:
+                _header_rows: int = len(data.columns.names)
+                _index_cols: int = len(data.index.names)
+            to_excel_kwargs['freeze_panes'] = (_header_rows, _index_cols)
+        to_excel_kwargs['sheet_name'] = sheet_name
         data.to_excel(
             self.excel_writer,
-            sheet_name=sheet_name,
             **to_excel_kwargs
         )
     ###END def DataFrameExcelWriter.write
@@ -438,7 +459,7 @@ class MultiDataFrameExcelWriter(
 
     def write(
             self,
-            data: Mapping[str, pd.DataFrame],
+            data: Mapping[str, pd.DataFrame|PandasStyler],
             /,
             *,
             style: tp.Optional[
@@ -470,8 +491,6 @@ class MultiDataFrameExcelWriter(
                 f'`style` must be a `ExcelDataFrameStyle` or a mapping from '
                 f'sheet names to `ExcelDataFrameStyle` objects. '
             )
-        if to_excel_kwargs is None:
-            to_excel_kwargs = dict()
         for _sheet_name, _df in data.items():
             _writer: DataFrameExcelWriter = DataFrameExcelWriter(
                 file=self.excel_writer,

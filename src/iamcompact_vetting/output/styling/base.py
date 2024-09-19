@@ -44,6 +44,16 @@ class PandasFormaterMixin:
         default_factory=lambda: PandasFormatParams()
     )
 
+    INDEX_FORMAT: tp.Optional[PandasFormatParams] = None
+
+    COLUMN_FORMAT: tp.Optional[PandasFormatParams] = None
+
+    INDEX_STYLE: tp.Optional[str | Callable[[tp.Any], str]] = \
+        'font-weight: bold; text-align: left'
+
+    COLUMN_STYLE: tp.Optional[str | Callable[[tp.Any], str]] = \
+        'font-weight: bold'
+
 ###END dataclass class PandasFormaterMixin
 
 
@@ -110,6 +120,10 @@ class CriterionTargetRangeOutputStyles(
     distance: InRangeStyles = dataclasses.field(default_factory=InRangeStyles)
     """Styling for cells in the `CTCol.DISTANCE` column."""
 
+    common: PandasFormaterMixin = \
+        dataclasses.field(default_factory=PandasFormaterMixin)
+    """Common formatting parameters, including for indexes and column headers"""
+
     # Implement abstract methods from `collections.abc.Mapping`
 
     def __getitem__(self, key: str|CTCol) -> PassFailStyles|InRangeStyles:
@@ -131,6 +145,6 @@ class CriterionTargetRangeOutputStyles(
 # __subclass_init__ method instead.
 ctcol_values: list[str] = [_member.value for _member in CTCol]
 assert all(
-    _field.name in ctcol_values
+    _field.name in ctcol_values + ['common']
     for _field in dataclasses.fields(CriterionTargetRangeOutputStyles)
 )
