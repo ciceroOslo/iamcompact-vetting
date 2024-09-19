@@ -361,7 +361,17 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
             (apart from `sheet_name`). Optional, defaults to None
         """
         if to_excel_kwargs is None:
-            to_excel_kwargs = dict()
+            to_excel_kwargs = ToExcelKwargs()
+        else:
+            to_excel_kwargs = to_excel_kwargs.copy()
+        if sheet_name is not None:
+            if 'sheet_name' in to_excel_kwargs:
+                raise ValueError(
+                    f'`sheet_name` is specified twice: with values '
+                    f'`{sheet_name}` as a keyword argument, and with values '
+                    f'`{to_excel_kwargs["sheet_name"]}` in the '
+                    f'`to_excel_kwargs` parameter. Must only be specified once.'
+                )
         if sheet_name is None:
             if 'sheet_name' in to_excel_kwargs:
                 sheet_name = to_excel_kwargs.pop('sheet_name')
@@ -386,9 +396,9 @@ class DataFrameExcelWriter(ExcelWriterBase[pd.DataFrame, None]):
                 _header_rows: int = len(data.columns.names)
                 _index_cols: int = len(data.index.names)
             to_excel_kwargs['freeze_panes'] = (_header_rows, _index_cols)
+        to_excel_kwargs['sheet_name'] = sheet_name
         data.to_excel(
             self.excel_writer,
-            sheet_name=sheet_name,
             **to_excel_kwargs
         )
     ###END def DataFrameExcelWriter.write
@@ -481,8 +491,6 @@ class MultiDataFrameExcelWriter(
                 f'`style` must be a `ExcelDataFrameStyle` or a mapping from '
                 f'sheet names to `ExcelDataFrameStyle` objects. '
             )
-        if to_excel_kwargs is None:
-            to_excel_kwargs = dict()
         for _sheet_name, _df in data.items():
             _writer: DataFrameExcelWriter = DataFrameExcelWriter(
                 file=self.excel_writer,
