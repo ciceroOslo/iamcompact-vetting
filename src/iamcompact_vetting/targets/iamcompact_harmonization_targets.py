@@ -45,17 +45,27 @@ class IamCompactHarmonizationRatioCriterion(TimeseriesRefCriterion):
         comparison_function: tp.Optional[
             Callable[[pyam.IamDataFrame, pyam.IamDataFrame], pd.Series]
         ] = None,
-        region_agg: TimeseriesRefCriterion.AggFuncArg = 'max',
-        time_agg: TimeseriesRefCriterion.AggFuncArg = 'max',
-        default_agg_dims: AggDims = AggDims.TIME,
-        broadcast_dims: tp.Iterable[str] = ('model', 'scenario'),
-        rating_function: Callable[[float], float] = lambda x: x,
+        region_agg: tp.Optional[TimeseriesRefCriterion.AggFuncArg] = None,
+        time_agg: tp.Optional[TimeseriesRefCriterion.AggFuncArg] = None,
+        default_agg_dims: tp.Optional[AggDims] = None,
+        broadcast_dims: tp.Optional[tp.Iterable[str]] = None,
+        rating_function: tp.Optional[Callable[[float], float]] = None,
     ):
         if comparison_function is None:
             comparison_function = get_ratio_comparison(
                 div_by_zero_value=np.inf,
                 zero_by_zero_value=1.0,
             )
+        if region_agg is None:
+            region_agg = 'max'
+        if time_agg is None:
+            time_agg = 'max'
+        if default_agg_dims is None:
+            default_agg_dims = AggDims.TIME
+        if broadcast_dims is None:
+            broadcast_dims = ('model', 'scenario')
+        if rating_function is None:
+            rating_function = lambda x: x
         super().__init__(
             criterion_name=criterion_name,
             reference=reference,
@@ -157,11 +167,8 @@ class IamCompactHarmonizationTarget(CriterionTargetRange):
     def __init__(
             self,
             criterion: IamCompactHarmonizationRatioCriterion,
-            target: float = 1.0,
-            range: tp.Optional[tuple[float, float]] = RelativeRange(
-                lower=1.0-IAMCOMPACT_HARMONIZATION_DEFAULT_TOLERANCE,
-                upper=1.0+IAMCOMPACT_HARMONIZATION_DEFAULT_TOLERANCE,
-            ),
+            target: tp.Optional[float] = None,
+            range: tp.Optional[tuple[float, float]] = None,
             *,
             distance_func: tp.Optional[tp.Callable[[float], float]] \
                 = None,
@@ -172,6 +179,13 @@ class IamCompactHarmonizationTarget(CriterionTargetRange):
         See the docstring of `CriterionTargetRange.__init__` for explanation
         of parameters and full list of keyword arguments.
         """
+        if target is None:
+            target = 1.0
+        if range is None:
+            range = RelativeRange(
+                lower=1.0-IAMCOMPACT_HARMONIZATION_DEFAULT_TOLERANCE,
+                upper=1.0+IAMCOMPACT_HARMONIZATION_DEFAULT_TOLERANCE,
+            )
         super().__init__(
             criterion=criterion,
             target=target,
