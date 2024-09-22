@@ -28,6 +28,7 @@ from ..targets.ar6_vetting_targets import vetting_targets as ar6_vetting_targets
 from ..targets.iamcompact_harmonization_targets import (
     IamCompactHarmonizationRatioCriterion,
     IamCompactHarmonizationTarget,
+    gdp_pop_harmonization_criterion,
 )
 from ..targets.target_classes import (
     CriterionTargetRange,
@@ -257,3 +258,9 @@ class IamCompactTimeseriesRefComparisonOutput(
     ###END def IamCompactHarmonizationRatioCriterion.__init__
 
 ###END class IamCompactHarmonizationRatioCriterion
+
+
+gdp_pop_harmonization_output: IamCompactTimeseriesRefComparisonOutput = \
+    IamCompactTimeseriesRefComparisonOutput(
+        reference=gdp_pop_harmonization_criterion,
+    )
