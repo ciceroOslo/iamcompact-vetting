@@ -385,14 +385,6 @@ class TimeseriesRefComparisonAndTargetOutput(
                 raise ValueError(
                     'Either `target_range` or `target_range_type` must be set.'
                 )
-            if target is None:
-                raise ValueError(
-                    '`target` cannot be None when `target_range` is not set.'
-                )
-            if range is None:
-                raise ValueError(
-                    '`range` cannot be None when `target_range` is not set.'
-                )
             return target_range_type(
                 criterion=criteria,
                 target=target,

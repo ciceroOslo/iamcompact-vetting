@@ -145,7 +145,7 @@ class CriterionTargetRange:
     def __init__(
             self,
             criterion: Criterion,
-            target: float,
+            target: float|None,
             range: tp.Optional[tuple[float, float]|RelativeRange] = None,
             *,
             unit: tp.Optional[str] = None,
@@ -162,6 +162,12 @@ class CriterionTargetRange:
         # Initialize _relative_range to None. If `range` is a RelativeRange,
         # self._relative_range will be set in `self._set_unit_specs`.
         self._relative_range: RelativeRange|None = None
+        if target is None:
+            raise ValueError(
+                f'The class {self.__class__.__name__} does not allow `target` '
+                'to be None. Please either specify a value for `target`, or '
+                'use a subclass that implements a default target value.'
+            )
         self.target = target
         self.range = range
         _convert_value_units: bool
