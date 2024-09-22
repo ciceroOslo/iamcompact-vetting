@@ -50,8 +50,10 @@ import pyam
 import pandas as pd
 from pandas.io.formats.style import Styler as PandasStyler
 
-from iamcompact_vetting.output.iamcompact_outputs import \
-    ar6_vetting_target_range_output
+from iamcompact_vetting.output.iamcompact_outputs import (
+    ar6_vetting_target_range_output,
+    IamCompactTimeseriesRefComparisonOutput,
+)
 from iamcompact_vetting.targets.iamcompact_harmonization_targets import(
     gdp_pop_harmonization_criterion,
     IamCompactHarmonizationRatioCriterion,
@@ -385,21 +387,11 @@ gdp_pop_harmonization_assessment_writer: MultiDataFrameExcelWriter = \
 )
 
 # %%
-gdp_pop_harmonization_output: TimeseriesRefComparisonAndTargetOutput[
-    IamCompactHarmonizationRatioCriterion,
-    IamCompactHarmonizationTarget,
-    TimeseriesRefFullComparisonOutput,
-    CriterionTargetRangeOutput,
-    MultiDataFrameExcelWriter,
-    None,
-    CriterionTargetRangeOutputStyles
-] = TimeseriesRefComparisonAndTargetOutput(
-    criteria=gdp_pop_harmonization_criterion,
-    target_range=IamCompactHarmonizationTarget,
-    timeseries_output_type=TimeseriesRefFullComparisonOutput,
-    summary_output_type=CriterionTargetRangeOutput,
-    writer=gdp_pop_harmonization_assessment_writer
-)
+gdp_pop_harmonization_output: IamCompactTimeseriesRefComparisonOutput = \
+    IamCompactTimeseriesRefComparisonOutput(
+        reference=gdp_pop_harmonization_criterion,
+        writer=gdp_pop_harmonization_assessment_writer,
+    )
 
 # %%
 gdp_pop_harmonization_result, _ignore = \
