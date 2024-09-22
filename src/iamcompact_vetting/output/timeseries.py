@@ -525,174 +525,56 @@ class TimeseriesRefComparisonAndTargetOutput(
         }
     ###END def TimeseriesComparisonOutput.style_output
 
-###END class TimeseriesComparisonOutput
+    @property
+    def summary_columns(self) -> Sequence[CTCol]:
+        """The columns included in the summary output, as `CTCol` enums."""
+        return self.summary_output._default_columns
+    ###END def TimeSeriesRefComparisonAndTargetOutput.summary_columns
 
+    @property
+    def summary_column_titles(self) -> Mapping[CTCol, str]:
+        """Dict of the titles of the columns included in the summary output."""
+        return self.summary_output._default_column_titles
+    ###END def TimeSeriesRefComparisonAndTargetOutput.summary_column_titles
 
-class OLDCODE_TO_BE_SPLIT_TimeSeriesRefFullAndSummaryOutput(
-    ResultOutput[
-        TimeseriesRefCriterionTypeVar,
-        pyam.IamDataFrame,
-        dict[str, pd.DataFrame],
-        DataFrameMappingWriterTypeVar,
-        WriteReturnTypeVar,
-    ]
-):
-    """Class to output both full and summary data for timeseries comparisons.
+    @property
+    def target(self) -> float:
+        """Target for the values returned by the timeseries criterion."""
+        return self.summary_output.criteria.target
+    ###END def TimeSeriesRefComparisonAndTargetOutput.target
 
-    The `prepare_output` method of this class returns a two-element dictionary,
-    one with the full data as prepared by the 
-    `TimeseriesComparisonFullDataOutput` class, and the second with summary
-    metrics as prepared by the `CriterionTargetRangeOutput` class.
+    @property
+    def range(self) -> tuple[float, float]:
+        """Target range for the values returned by the timeseries criterion."""
+        return self.summary_output.criteria.range
+    ###END def TimeSeriesRefComparisonAndTargetOutput.target_range
 
-    The class is intended to be used for outputting full and summary results to
-    different worksheets in an Excel file using `MultiDataFrameExcelWriter`. The
-    keys of the dictionary are then the names of the worksheets. But it can
-    also be used for any other writer or purpose that accepts a two-element
-    dictionary of the type described here.
-    """
+    @property
+    def relative_range(self) -> RelativeRange | None:
+        """Relative range for values returned by the timeseries criterion.
 
-    def __init__(
-            self,
-            *,
-            criteria: TimeseriesRefCriterionTypeVar,
-            target: float,
-            range: tuple[float, float] | RelativeRange,
-            writer: DataFrameMappingWriterTypeVar,
-            columns: tp.Optional[Sequence[CTCol]] = None,
-            column_titles: tp.Optional[Mapping[CTCol, str]] = None,
-            full_comparison_key: tp.Optional[str] = None,
-            summary_key: tp.Optional[str] = None,
-            distance_func: tp.Optional[Callable[[float], float]] = None,
-            criterion_target_range_kwargs: \
-                tp.Optional[CriterionTargetRangeOtherKwargs] = None,
-    ):
-        """Init method.
-
-        Parameters
-        ----------
-        criteria : TimeseriesRefCriterion
-            The criterion to be used to prepare the output data.
-        target : float
-            The target value used for the summary metrics. It is compared to the
-            values returned by the `.get_values` method of the
-            `TimeseriesRefCriterion` instance passed through the `criteria`
-            parameter. See the docstring of `CriterionTargetRangeOutput` for
-            details.
-        range : 2-tuple of floats or RelativeRange
-            The range used for the summary metrics. See the docstring of
-            `CriterionTargetRangeOutput` for details.
-        writer : DataFrameMappingWriter
-            The writer to be used to write the output data.
-        columns : list of CTCol, optional
-            The columns to be used in the summary metrics DataFrame. See the
-            docstring of CriterionTargetRangeOutput for details. Optional. By
-            default, all columns are included.
-        column_titles : dict of CTCol, optional
-            The column titles to be used in the output data. See the docstring
-            of CriterionTargetRangeOutput for details. Optional. By default,
-            the following titles are used:
-            * `CTCol.INRANGE`: `"Is in target range"`
-            * `CTCol.DISTANCE`: `"Rel. distance from target"`
-            * `CTCol.VALUE`: `"Value"`
-        full_comparison_key : str, optional
-            The key to be used for the full comparison DataFrame in the
-            dictionary returned by the `prepare_output` method. Optional, by
-            default, `"Full comparison"` is used.
-        summary_key : str, optional
-            The key to be used for the summary metrics DataFrame in the
-            dictionary returned by the `prepare_output` method. Optional, by
-            default, `"Summary metrics"` is used.
-        distance_func : callable, optional
-            The function to be used to compute the relative distance from the
-            target. See the docstring of `CriterionTargetRangeOutput` for
-            details, including the default value. Optional.
-        criterion_target_range_kwargs : dict, optional
-            Keyword arguments to be passed to a `CriterionTargetRangeOutput`
-            instance that is used to prepare the summary metrics, except for
-            the `criterion`, `target`, `range` and `distance_func` parameters.
-            See the docstring of `CriterionTargetRangeOutput` for details.
+        If the range was originally specified in terms of values relative to
+        `target` (i.e., as a `RelativeRange` instance), this will return that
+        range, equal to `range` with each element divided by `target`. If the
+        range was originally specified in terms of absolute values, `None` will
+        be returned.
         """
-        self.criteria: TimeseriesRefCriterionTypeVar = criteria
-        self.writer: DataFrameMappingWriterTypeVar = writer
-        self._default_columns: Sequence[CTCol] = columns if columns is not None else (
-            CTCol.INRANGE,
-            CTCol.DISTANCE,
-            CTCol.VALUE,
-        )
-        self._default_column_titles: Mapping[CTCol, str] = column_titles \
-            if column_titles is not None else {
-                CTCol.INRANGE: 'Is in target range',
-                CTCol.DISTANCE: 'Rel. distance from target',
-                CTCol.VALUE: 'Value',
-        }
-        self._full_comparison_key: str = full_comparison_key \
-            if full_comparison_key is not None else 'Full comparison'
-        self._summary_key: str = summary_key if summary_key is not None \
-            else 'Summary metrics'
-        self._full_data_output: TimeseriesRefFullComparisonOutput[
-            TimeseriesRefCriterionTypeVar,
-            NoWriter,
-            None
-        ] = TimeseriesRefFullComparisonOutput(
-            criteria=criteria,
-            writer=NoWriter(),
-        )
-        self._summary_target_range: CriterionTargetRange = CriterionTargetRange(
-            criterion=criteria,
-            target=target,
-            range=range,
-            distance_func=distance_func,
-            **(criterion_target_range_kwargs or {}),
-        )
-        # THE OUTPUT-RELATED CODE BELOW NEEDS TO BE CHECKED AND REWRITTEN
-        self._summary_output: CriterionTargetRangeOutput[
-            CriterionTargetRange,
-            NoWriter,
-            None
-        ] = CriterionTargetRangeOutput(
-            criteria=self._summary_target_range,
-            writer=NoWriter(),
-            columns=columns,
-            column_titles=column_titles,
-        )
-    ###END def TimeseriesComparisonOutput.__init__
+        return self.summary_output.criteria.relative_range
+    ###END def TimeSeriesRefComparisonAndTargetOutput.target_range
 
-    def prepare_output(
-            self,
-            data: pyam.IamDataFrame,
-    ) -> dict[str, pd.DataFrame]:
-        """Prepare DataFrames with full comparison and with summary metrics.
+    def is_in_range(self, value: float) -> bool:
+        """Checks whether a single number is in the target range."""
+        return self.summary_output.criteria.is_in_range(value)
+    ###END def TimeSeriesRefComparisonAndTargetOutput.is_in_range
 
-        *NB!* Unlike the `prepare_output` method of some other `ResultsOutput`
-        subclasses, this method does not take accept a custom `criteria`
-        parameter. Use the `criteria` parameter of the `__init__` method when
-        creating the instance instead. If there is sufficient demand for
-        enabling a custom `criteria` parameter for this method, it may be
-        implemented in the future.
+    def is_below_range(self, value: float) -> bool:
+        """Checks whether a single number is below the target range."""
+        return self.summary_output.criteria.is_below_range(value)
+    ###END def TimeSeriesRefComparisonAndTargetOutput.is_below_range
 
-        Parameters
-        ----------
-        data : pyam.IamDataFrame
-            The data to be used in the output.
+    def is_above_range(self, value: float) -> bool:
+        """Checks whether a single number is above the target range."""
+        return self.summary_output.criteria.is_above_range(value)
+    ###END def TimeSeriesRefComparisonAndTargetOutput.is_above_range
 
-        Returns
-        -------
-        dict
-            A dictionary with the following keys:
-            * `self._full_comparison_key`: The full comparison DataFrame
-            * `self._summary_key`: The summary metrics DataFrame
-        """
-        # NB! The code below is probably quite inefficient, as the
-        # `prepare_output` calls of both `_full_data_output` and
-        # `_summary_output` will call `self.criteria.get_values`, which
-        # can be expensive. This should be fixed, maybe by enabling
-        # `TimeseriesRefCriterion.get_values` to cache its return value.
-        full_comparison = self._full_data_output.prepare_output(data)
-        summary_metrics = self._summary_output.prepare_output(data)
-        return {
-            self._full_comparison_key: full_comparison,
-            self._summary_key: summary_metrics,
-        }
-    ###END def TimeseriesComparisonOutput.prepare_output
-
-###END class TimeseriesComparisonOutput
+###END class TimeseriesRefComparisonAndTargetOutput
