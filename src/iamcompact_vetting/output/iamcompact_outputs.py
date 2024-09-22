@@ -255,9 +255,9 @@ class IamCompactTimeseriesRefComparisonOutput(
             style=style,
             writer=writer,
         )
-    ###END def IamCompactHarmonizationRatioCriterion.__init__
+    ###END def IamCompactTimeseriesRefComparisonOutput.__init__
 
-###END class IamCompactHarmonizationRatioCriterion
+###END class IamCompactTimeseriesRefComparisonOutput
 
 
 gdp_pop_harmonization_output: IamCompactTimeseriesRefComparisonOutput = \
