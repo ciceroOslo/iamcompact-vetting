@@ -1,6 +1,6 @@
 [project]
 name = "iamcompact-vetting"
-version = "0.0.12"
+version = "0.0.13"
 description = "Vetting checks for model outputs in the HORIZON EUROPE project IAM COMPACT"
 authors = [
     { name = "Jan Ivar Korsbakken", email = "janko@cicero.oslo.no" }
