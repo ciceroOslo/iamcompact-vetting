@@ -20,6 +20,8 @@ import pyam
 
 gdp_pop_harmonization_data_file: tp.Final[Path] = \
     Path(__file__).parent / 'gdp_pop_iam_compact_20230625_IAMCformat.xlsx'
+gdp_pop_harmonization_data_file_regmapped: tp.Final[Path] = \
+    Path(__file__).parent / 'gdp_pop_iam_compact_20230625_IAMCformat_region_mapped.xlsx'
 
 _gdp_pop_harmonisation_iamdf_with_iso3: pyam.IamDataFrame|None = None
 _gdp_pop_harmonisation_iamdf: pyam.IamDataFrame|None = None
@@ -46,21 +48,21 @@ def get_gdp_pop_harmonisation_iamdf(
         index of the returned `IamDataFrame` will contain an extra level `iso3`
         in addition to the usual `IamDataFrame` index levels. Optional, by
         default `False`.
+        **NB!** Setting this parameter to `True` or None is deprecated. Doing so
+        will exclude aggregate regions.
     """
     global _gdp_pop_harmonisation_iamdf_with_iso3
     global _gdp_pop_harmonisation_iamdf
-    if _gdp_pop_harmonisation_iamdf_with_iso3 is None or force_reload:
-        _gdp_pop_harmonisation_iamdf_with_iso3 = pyam.IamDataFrame(
-            gdp_pop_harmonization_data_file
-        )
+    if with_iso3_column:
+        if _gdp_pop_harmonisation_iamdf_with_iso3 is None or force_reload:
+            _gdp_pop_harmonisation_iamdf_with_iso3 = pyam.IamDataFrame(
+                gdp_pop_harmonization_data_file
+            )
+        return _gdp_pop_harmonisation_iamdf_with_iso3
     if not with_iso3_column:
         if _gdp_pop_harmonisation_iamdf is None or force_reload:
             _gdp_pop_harmonisation_iamdf = pyam.IamDataFrame(
-                data=_gdp_pop_harmonisation_iamdf_with_iso3._data. \
-                    droplevel('iso3'),
-                meta=_gdp_pop_harmonisation_iamdf_with_iso3.meta,
+                gdp_pop_harmonization_data_file_regmapped
             )
         return _gdp_pop_harmonisation_iamdf
-    else:
-        return _gdp_pop_harmonisation_iamdf_with_iso3
 ###END def get_gdp_pop_harmonisation_iamdf
